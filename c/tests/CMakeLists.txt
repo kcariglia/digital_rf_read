@@ -1,4 +1,6 @@
 function(InitializeTest test_name file)
+    set(CMAKE_BUILD_TYPE Debug)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -g")
     add_executable(${test_name} ${file})
     set_target_properties(${test_name} PROPERTIES RUNTIME_OUTPUT_DIRECTORY .)
     target_link_libraries(${test_name} digital_rf)
@@ -6,3 +8,4 @@ function(InitializeTest test_name file)
 endfunction()
 
 InitializeTest(test_rf_write_hdf5 test_rf_write_hdf5.c)
+InitializeTest(test_rf_read_hdf5 example_rf_read_hdf5.c)

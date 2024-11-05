@@ -113,6 +113,103 @@ typedef struct digital_rf_write_object {
 
 } Digital_rf_write_object;
 
+
+typedef struct top_level_dir_properties {
+
+	char * top_level_dir;
+	char * channel_name;
+	char * access_mode;
+	uint64_t rdcc_nbytes;
+	uint64_t   sample_rate_numerator;   /* sample rate numerator. Final sample rate is sample_rate_numerator/sample_rate_denominator in Hz */
+	uint64_t   sample_rate_denominator; /* sample rate denominator. Final sample rate is sample_rate_numerator/sample_rate_denominator in Hz */
+	long double sample_rate;            /* calculated sample_rate set to sample_rate_numerator/sample_rate_denominator */
+	char * cachedFilename;
+	hid_t cachedFile; //should this be a pointer?
+	char * 	   min_version;
+	char *	   max_version;
+	char * 	   version;
+	char *	   drf_time_desc;
+	char * 	   epoch;
+	uint64_t   file_cadence_millisecs;
+	int        is_complex;              /* 1 if complex (IQ) data, 0 if single valued */
+	int        is_continuous;           /* 1 if continuous data being written, 0 if there might be gaps */
+	int        num_subchannels;
+	uint64_t   subdir_cadence_secs;
+
+
+
+} top_level_dir_properties;
+
+
+typedef struct channel_properties {
+
+	char * channel_name;
+	top_level_dir_properties * top_level_dir_meta;
+
+} channel_properties;
+
+
+typedef struct digital_rf_read_object {
+
+	// everything here is what im actually using 
+	char *     top_level_directory;       		/* Channel directory name where all data is stored - will always end with a "/" */
+	char **	   channel_names;
+	channel_properties ** channels;
+	int 	   num_channels;
+	// may not need subchannels here,
+	// taken care of by top_lev_dir_props
+	int        num_subchannels;         /* number of subchannels in the data stream.  Must be at least 1. */
+	char * 	   access_mode;
+	uint64_t   rdcc_nbytes;
+	
+	
+	
+	// probably dont need *all* of these fields..
+	char *     sub_directory;           /* Present sub-directory in form YYYY-MM-DDTHH:MM:SS - will always end with a "/" */
+	char       basename[SMALL_HDF5_STR];/* Basename of last hdf5 file written to */
+	
+	// hdf5 objects
+	hid_t      dataset;         		/* Dataset presently opened            */
+	hid_t      dataspace;       		/* Dataspace used (rf_data)            */
+	hid_t      filespace;       		/* filespace object used               */
+	hid_t      memspace;        		/* memspace object used                */
+	hid_t      hdf5_file;       		/* Hdf5 file presently opened          */
+	hid_t      dataset_prop;    		/* Hdf5 dataset property               */
+	hid_t      index_dataset;   		/* Hdf5 rf_data_index dataset          */
+	hid_t      index_prop;      		/* Hdf5 rf_data_index property         */
+	int        next_index_avail;		/* the next available row in /rf_data_index */
+					/* HDF5 chunk cache size - must be at least file size -- hol up do you actually need this? */
+	uint64_t   global_index;    		/* index into the next sample that could be written (global) */
+	int        present_seq;     		/* The present Hdf5 file sequence. Init value is -1 */
+	uint64_t   dataset_index;   		/* the next available index in open Hdf5 to write to */
+	uint64_t   dataset_avail;   		/* the number of samples in the dataset available for writing to */
+	uint64_t   block_index;     		/* the next available row in the open Hdf5 file/rf_data_index dataset to write to */
+
+	// actual data
+	int        is_complex;              /* 1 if complex (IQ) data, 0 if single valued */
+	int        rank;            		/* 2 if complex (IQ) data or num_subchannels > 1, 1 otherwise */
+	uint64_t   subdir_cadence_secs;		/* Number of seconds of data found in one subdir. */
+	uint64_t   file_cadence_millisecs; 	/* number of milliseconds of data per file. Rule:  subdir_cadence_secs*1000 % file_cadence_millisecs == 0 */
+	uint64_t   global_start_sample;     /* time of first sample in number of samples since UT midnight 1970-01-01 */
+	uint64_t   max_chunk_size;          /* smallest possible value for maximum number of samples in a file = floor((file_cadence_millisecs/1000)*sample_rate) */
+	int        is_continuous;           /* 1 if continuous data being written, 0 if there might be gaps */
+	int        needs_chunking;  		/* 1 if /rf_data needs chunking (either not is_continuous or compression or checksums used) */
+	hsize_t    chunk_size;      		/* With Digital RF 2.0 hard coded to CHUNK_SIZE_RF_DATA */
+	hid_t      dtype_id;        		/* individual field data type as defined by hdf5.h */
+	hid_t      complex_dtype_id;        /* complex compound data type if is_complex, with fields r and i */
+
+	// probably metadata
+	char *     uuid_str;        		/* UUID in str form */
+	int        marching_dots;           /* non-zero if marching dots desired when writing, 0 if not */
+	uint64_t   init_utc_timestamp;      /* unix time when channel init called - stored as attribute in each file */
+	uint64_t   last_utc_timestamp;      /* unix time when last write called - supports digital_rf_get_last_write_time method */
+	int        has_failure;				/* bool flag to detect a io error has occured, disallows all following writes */
+
+
+} Digital_rf_read_object;
+
+
+
 /* Public method declarations */
 
 
@@ -159,6 +256,11 @@ EXPORT int digital_rf_write_blocks_hdf5(
 	EXPORT char * digital_rf_get_last_dir_written(Digital_rf_write_object *hdf5_data_object);
 	EXPORT uint64_t digital_rf_get_last_write_time(Digital_rf_write_object *hdf5_data_object);
 	EXPORT int digital_rf_close_write_hdf5(Digital_rf_write_object *hdf5_data_object);
+
+	EXPORT Digital_rf_read_object * digital_rf_create_read_hdf5(char * directory, uint64_t rdcc_nbytes);
+	EXPORT char ** get_channels(Digital_rf_read_object * drf_read_obj);
+	EXPORT int * get_bounds(Digital_rf_read_object * drf_read_obj, char * channel_name);
+	EXPORT void digital_rf_close_read_hdf5(Digital_rf_read_object * drf_read_obj);
 #endif
 
 /* Private method declarations */

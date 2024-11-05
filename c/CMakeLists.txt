@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.0)
 cmake_policy(SET CMP0048 NEW)
 
+set(CMAKE_BUILD_TYPE Debug)
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -g")
+
 # can't do binary dir == source dir because of file copying
 if(CMAKE_BINARY_DIR STREQUAL CMAKE_SOURCE_DIR)
     message(FATAL_ERROR "Must use a build/binary directory different from the\
@@ -74,6 +77,13 @@ foreach(LIB IN LISTS HDF5_LIBRARIES)
 endforeach(LIB)
 
 # build/install libdigital_rf
+set(Python_FIND_VIRTUALENV ONLY)
+find_package(PythonInterp REQUIRED)
+find_package(PythonLibs REQUIRED)
+find_package(Python REQUIRED COMPONENTS Interpreter Development)
+include_directories(${PYTHON_INCLUDE_DIRS})
+link_directories(${Python_LIBRARY_DIRS})
+add_compile_options(${Python_COMPILE_FLAGS})
 configure_file(include/digital_rf.h include/digital_rf.h COPYONLY)
 configure_file(include/digital_rf_version.h include/digital_rf_version.h COPYONLY)
 if(WIN32)
@@ -81,7 +91,7 @@ if(WIN32)
     configure_file(include/windows/stdint.h include/stdint.h COPYONLY)
     configure_file(include/windows/wincompat.h include/wincompat.h COPYONLY)
 endif(WIN32)
-add_library(digital_rf lib/rf_write_hdf5.c)
+add_library(digital_rf lib/rf_write_hdf5.c lib/rf_read_hdf5.c)
 add_library(digital_rf::digital_rf ALIAS digital_rf)
 if(NOT TARGET build)
     add_custom_target(build)
@@ -91,8 +101,10 @@ target_include_directories(digital_rf PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/digital_rf>
 )
-target_link_libraries(digital_rf PUBLIC ${HDF5_LIB_TARGETS} PRIVATE ${MATH_LIB})
+target_link_libraries(digital_rf PUBLIC ${HDF5_LIB_TARGETS} ${PYTHON_LIBRARIES} PRIVATE ${MATH_LIB})
 set_target_properties(digital_rf PROPERTIES
+    ARCHIVE_OUTPUT_DIRECTORY lib
+    LIBRARY_OUTPUT_DIRECTORY lib
     VERSION ${libdigital_rf_VERSION}
     SOVERSION ${libdigital_rf_VERSION_MAJOR}
     INTERFACE_libdigital_rf_MAJOR_VERSION ${libdigital_rf_VERSION_MAJOR}
@@ -103,10 +115,10 @@ set_target_properties(digital_rf PROPERTIES
     POSITION_INDEPENDENT_CODE ON
 )
 
-install(TARGETS digital_rf
-    EXPORT libdigital_rfTargets
+install(TARGETS digital_rf EXPORT libdigital_rfTargets
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )
-
 install(FILES
     ${CMAKE_CURRENT_BINARY_DIR}/include/digital_rf.h
     ${CMAKE_CURRENT_BINARY_DIR}/include/digital_rf_version.h
