@@ -259,7 +259,7 @@ EXPORT int digital_rf_write_blocks_hdf5(
 
 	EXPORT Digital_rf_read_object * digital_rf_create_read_hdf5(char * directory, uint64_t rdcc_nbytes);
 	EXPORT char ** get_channels(Digital_rf_read_object * drf_read_obj);
-	EXPORT int * get_bounds(Digital_rf_read_object * drf_read_obj, char * channel_name);
+	EXPORT unsigned long long * get_bounds(Digital_rf_read_object * drf_read_obj, char * channel_name);
 	EXPORT void digital_rf_close_read_hdf5(Digital_rf_read_object * drf_read_obj);
 #endif
 

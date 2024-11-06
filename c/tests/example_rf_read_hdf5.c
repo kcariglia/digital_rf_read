@@ -12,7 +12,7 @@ int main(int argc, char* argv[])
     char * dir2 = "/Users/cariglia/Desktop/drfexamples/hprec_channels";
     char * dir3 = "/Users/cariglia/Desktop/drfexamples/hprec_subchannels";
 
-    printf("Test 1: basic examples\n");
+    printf("Test 1: basic example\n");
     printf("----------------------\n");
     //printf("about to init read obj\n");
 
@@ -38,8 +38,9 @@ int main(int argc, char* argv[])
         printf("epoch: %s\n", read_obj->channels[i]->top_level_dir_meta->epoch);
     }
 
-    int * bounds1;
+    unsigned long long * bounds1;
     bounds1 = get_bounds(read_obj, "junk0");
+    printf("got bounds: %ld  %ld\n", bounds1[0], bounds1[1]);
     // print bounds here
 
     digital_rf_close_read_hdf5(read_obj);

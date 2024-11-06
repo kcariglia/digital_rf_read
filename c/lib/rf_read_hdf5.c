@@ -148,7 +148,7 @@ docs here
     //char * prop_d_match = "dmd_properties.h5"; // when to account for this? not in example
     char * old_prop_match = "metadata.h5";
     // is there a better way to get the regex patterns from list_drf?
-    // TODO
+    // yes-- but not necessary for this particular use case
     int prop_exists = check_file_exists(chan_path, prop_match);
     int old_prop_exists = check_file_exists(chan_path, old_prop_match);
 
@@ -728,16 +728,17 @@ docs here, FIX ME
 }
 
 
-int * get_bounds(Digital_rf_read_object * drf_read_obj, char * channel_name)
+unsigned long long * get_bounds(Digital_rf_read_object * drf_read_obj, char * channel_name)
 /*
 more docs here
 return a pair of ints
 */
 {
-  int bounds[2]; // may need long int
+  unsigned long long bounds[2];
+  unsigned long long s_bound, e_bound;
+  unsigned long long tmp_bounds[2];
   char channel_dir[MED_HDF5_STR];
   int chan_idx = -1;
-  int first_unix_sample, last_unix_sample; // may need long int
 
   if (strcmp(drf_read_obj->access_mode, "local") != 0) {
     fprintf(stderr, "Access mode %s not implemented\n", drf_read_obj->access_mode);
@@ -782,17 +783,17 @@ return a pair of ints
     exit(-15);
   } else {
     // looks like best practice is to keep this in this else block
-    printf("imported mod\n");
-    fflush(stdout);
+    //printf("imported mod\n");
+    //fflush(stdout);
     // get a reference to list_drf.ilsdrf
     char func[SMALL_HDF5_STR] = "ilsdrf";
     PyObject * ilsdrf = PyObject_GetAttrString(list_drf_mod, func); // DECREF ME
     if (!ilsdrf) {
-      printf("yuh\n");
-      fflush(stdout);
+      fprintf(stderr, "Unable to access list_drf.ilsdrf()\n");
+      exit(-16);
     }
-    printf("got first ref\n");
-    fflush(stdout);
+    //printf("got first ref\n");
+    //fflush(stdout);
     PyObject * args = PyTuple_Pack(9, PyUnicode_FromString(channel_dir), // DECREF ME
                                       Py_False,   // recursive
                                       Py_False,   // reverse
@@ -802,24 +803,25 @@ return a pair of ints
                                       Py_False,   // include_dmd
                                       Py_None,    // include_drf_properties
                                       Py_None);   // include_dmd_properties
-    printf("packed args\n");
-    fflush(stdout);
+    //printf("packed args\n");
+    //fflush(stdout);
     // py_path_gen is a python generator of drf files and metadata files
     // in the given channel directory, time ordered
     PyObject * py_path_gen = PyObject_CallObject(ilsdrf, args); // DECREF ME
     
-    printf("got some kind of result\n");
-    fflush(stdout);
+    //printf("got some kind of result\n");
+    //fflush(stdout);
 
-    int check = PyIter_Check(py_path_gen);
-    printf("iterator? %d\n", check);
+    //int check = PyIter_Check(py_path_gen);
+    //printf("iterator? %d\n", check);
 
     PyObject * path;
-    //path = PyIter_Next(py_path_gen); this doesnt work, path is still null
+    bool firstpath = true;
+    unsigned long long total_samples;
     while ((path = PyIter_Next(py_path_gen))) { // DECREF ME
-      printf("its a string right??? %d\n", PyUnicode_Check(path));
+      //printf("its a string right??? %d\n", PyUnicode_Check(path));
       char * datapath = PyUnicode_AsUTF8(path);
-      printf("got path %s\n", datapath);
+      //printf("got path %s\n", datapath);
 
       // ignore properties file
       if (strstr(datapath, "drf_properties.h5") != NULL) {
@@ -827,7 +829,7 @@ return a pair of ints
         continue;
       }
       
-      hid_t prop_file, fapl, dset;
+      hid_t prop_file, fapl, dset, dshape, space;
       char attr_name[SMALL_HDF5_STR];
       hsize_t size;
       herr_t status;
@@ -855,21 +857,52 @@ return a pair of ints
         exit(-10);
       }
 
-      // do stuff with dset
-      // int(f["rf_data_index"][0][0])  <- this is what u want
+      if (H5Dread(dset, H5T_NATIVE_ULLONG, H5S_ALL, H5S_ALL, H5P_DEFAULT, &tmp_bounds) < 0) {
+        fprintf(stderr, "Unable to get rf_data_index\n");
+        exit(-10);
+      }
 
+      if (firstpath) {
+        // set start bound if first path in list
+        s_bound = tmp_bounds[0];
+        firstpath = false;
+      } else {
+        // keep resetting last index until you break out of the while loop
+        if ((dshape = H5Dopen2(prop_file, "./rf_data", H5P_DEFAULT)) == H5I_INVALID_HID) {
+          fprintf(stderr, "Unable to get rf_data\n");
+          exit(-10);
+        }
+        space = H5Dget_space(dshape);
+        int rank = H5Sget_simple_extent_ndims(space);
+        if (rank >= 0) {
+          //printf("you are safe to follow the phind example\n");
+          hsize_t dims[rank];
+          H5Sget_simple_extent_dims(space, dims, NULL);
+          total_samples = dims[0];
 
+          /* printf("Dimensions: ");
+          for (int i = 0; i < rank; i++) {
+            printf("%lld ", dims[i]);
+          }
+          printf("\n"); */
+        } else {
+          fprintf(stderr, "Unable to read rf_data shape\n");
+          exit(-18);
+        }
 
-
-
+        H5Dclose(dshape);
+      }
 
       Py_DECREF(path);
       H5Dclose(dset);
       H5Fclose(prop_file);
     }
 
-  
-
+    // last_start_sample = tmp_bounds[0]
+    // last_index = tmp_bounds[1]
+    e_bound = (tmp_bounds[0] + (total_samples - (tmp_bounds[1] + 1)));
+    bounds[0] = s_bound;
+    bounds[1] = e_bound;
 
     Py_DECREF(args);
     Py_DECREF(py_path_gen);
@@ -877,14 +910,8 @@ return a pair of ints
     Py_DECREF(list_drf_mod);
   }
   
-  
-
-
-
   Py_Finalize();
-
   return(bounds);
-
 }
 
 
