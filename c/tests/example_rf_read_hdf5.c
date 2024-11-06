@@ -41,7 +41,6 @@ int main(int argc, char* argv[])
     unsigned long long * bounds1;
     bounds1 = get_bounds(read_obj, "junk0");
     printf("got bounds: %ld  %ld\n", bounds1[0], bounds1[1]);
-    // print bounds here
 
     digital_rf_close_read_hdf5(read_obj);
     read_obj = NULL;
@@ -66,9 +65,9 @@ int main(int argc, char* argv[])
         printf("sample rate: %Lf\n", read_obj->channels[i]->top_level_dir_meta->sample_rate);
     }
 
-    int * bounds2;
+    unsigned long long * bounds2;
     bounds2 = get_bounds(read_obj, "da");
-    // print bounds here
+    printf("got bounds: %ld  %ld\n", bounds2[0], bounds2[1]);
 
     digital_rf_close_read_hdf5(read_obj);
     read_obj = NULL;
@@ -94,9 +93,9 @@ int main(int argc, char* argv[])
         printf("sample rate: %Lf\n", read_obj->channels[i]->top_level_dir_meta->sample_rate);
     }
 
-    int * bounds3;
+    unsigned long long * bounds3;
     bounds3 = get_bounds(read_obj, "adc");
-    // print bounds here
+    printf("got bounds: %ld  %ld\n", bounds3[0], bounds3[1]);
 
     digital_rf_close_read_hdf5(read_obj);
     read_obj = NULL;

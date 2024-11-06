@@ -23,6 +23,8 @@ dont forget to remove:
     all fflush(stdout)
 
 dont forget to free rpath, dirlist, overall read obj, etc
+
+what to do about multiple calls to python functions?
 */
 
 #ifdef _WIN32
@@ -65,7 +67,7 @@ pulled from phind: https://www.phind.com/search?cache=o3i451qcuvimrldkp92h97tw
     // Open the directory
     dir = opendir(directory);
     if (!dir) {
-        perror("Failed to open directory");
+        //perror("Failed to open directory");
         return 0;
     }
 
@@ -205,8 +207,6 @@ docs here
     uint64_t num, den, sps;
     int old = 0;
 
-
-
     // iterate through all attributes in root group
     for (hsize_t i = 0; i < n; i++) {
       // start by getting attribute id
@@ -216,20 +216,12 @@ docs here
       }
       // get attribute name
       H5Aget_name(attr_id, SMALL_HDF5_STR, attr_name);
-      //printf("found attr with name %s\n", attr_name);
-
-      // attr_id = H5Aopen_by_name(prop_file, ".", attr_name, H5P_DEFAULT, lapl_id);
-      // if (attr_id < 0) {
-      //   fprintf(stderr, "Couldn't open attribute %s\n", attr_name);
-      // }
 
       // get attribute dtype
       attr_dtype = H5Aget_type(attr_id);
       
       // i wish switch blocks worked with strings
       // the following is in lieu of that
-      // dont forget to double check that dir_props is 
-      // set the way it should be
       if (strcmp(attr_name, "digital_rf_time_description") == 0) {
         char time_desc[MED_HDF5_STR];
         if ((status = H5Aread(attr_id, attr_dtype, &time_desc)) < 0) {
@@ -260,7 +252,6 @@ docs here
         }
         dir_props->version = malloc((strlen(version) + 1) * sizeof(char));
         strcpy(dir_props->version, version);
-        // double check version validity here, FIX ME
       } else if (strcmp(attr_name, "epoch") == 0) {
         char epoch[SMALL_HDF5_STR];
         if ((status = H5Aread(attr_id, attr_dtype, &epoch)) < 0) {
@@ -337,89 +328,7 @@ docs here
         dir_props->sample_rate = sample_rate;
     }
 
-
-
-
-
-    // the following works but itd be nice to iterate through all the 
-    // attributes instead
-     
-    /*
-    // first, check if older version
-    // attribute to get here is "samples_per_second"
-    //
-
-    if ((attr_id = H5Aopen(prop_file, "samples_per_second", H5P_DEFAULT)) == H5I_INVALID_HID) {
-      // new version
-      uint64_t numerator, denominator;
-      hid_t attr_dtype;
-
-      // get numerator
-      if ((attr_id = H5Aopen(prop_file, "sample_rate_numerator", H5P_DEFAULT)) == H5I_INVALID_HID) {
-        fprintf(stderr, "Problem accessing sample_rate_numerator\n");
-        exit(-12);
-      }
-      attr_dtype = H5Aget_type(attr_id);
-      if ((status = H5Aread(attr_id, attr_dtype, &numerator)) < 0) {
-        fprintf(stderr, "Problem reading %s\n", prop_filename);
-        exit(-13);
-      }
-      dir_props->sample_rate_numerator = numerator;
-      if ((status = H5Aclose(attr_id)) < 0) {
-        fprintf(stderr, "Problem closing %s\n", prop_filename);
-        exit(-14);
-      }
-
-      // get denominator
-      if ((attr_id = H5Aopen(prop_file, "sample_rate_denominator", H5P_DEFAULT)) == H5I_INVALID_HID) {
-        fprintf(stderr, "Problem accessing sample_rate_denominator\n");
-        exit(-15);
-      }
-      attr_dtype = H5Aget_type(attr_id);
-      if ((status = H5Aread(attr_id, attr_dtype, &denominator)) < 0) {
-        fprintf(stderr, "Problem reading %s\n", prop_filename);
-        exit(-16);
-      }
-      dir_props->sample_rate_denominator = denominator;
-      if ((status = H5Aclose(attr_id)) < 0) {
-        fprintf(stderr, "Problem closing %s\n", prop_filename);
-        exit(-17);
-      }
-
-      // get sample rate
-      long double sample_rate;
-      sample_rate = (long double)numerator / (long double)denominator;
-      dir_props->sample_rate = sample_rate;
-      
-      
-    } else {
-      // old version
-      int numerator, denominator;
-      uint64_t samples_per_sec;
-      hid_t attr_dtype;
-      attr_dtype = H5Aget_type(attr_id);
-      if ((status = H5Aread(attr_id, attr_dtype, &samples_per_sec)) < 0) {
-        fprintf(stderr, "Problem reading %s\n", prop_filename);
-        exit(-12);
-      }
-      get_fraction(samples_per_sec, &numerator, &denominator);
-
-      dir_props->sample_rate = (long double)samples_per_sec;
-      dir_props->sample_rate_numerator = (uint64_t)numerator;
-      dir_props->sample_rate_denominator = (uint64_t)denominator;
-      if ((status = H5Aclose(attr_id)) < 0) {
-        fprintf(stderr, "Problem closing %s\n", prop_filename);
-        exit(-13);
-      }
-    }*/
-    
-    //H5Gclose(group_id); 
     H5Fclose(prop_file);
-
-    //tmp only
-    // printf("sample rate: %Lf\n", dir_props->sample_rate);
-    // printf("numerator: %d\n", dir_props->sample_rate_numerator);
-    // printf("denominator: %d\n", dir_props->sample_rate_denominator);
 
   } else {
     fprintf(stderr, "access mode %s not implemented\n", dir_props->access_mode);
@@ -487,8 +396,6 @@ need to account for channels AND SUBCHANNELS!!!!!
   // dmd is for metadata only, not sure where to look for this yet
   //char * prop_d_match = "dmd_properties.h5";
   char * old_prop_match = "metadata.h5";
-  // is there a better way to get the regex patterns from list_drf?
-  // TODO
   int prop_exists = check_file_exists(top_level_dir, prop_match);
   int old_prop_exists = check_file_exists(top_level_dir, old_prop_match);
   if (prop_exists || old_prop_exists) {
@@ -506,7 +413,6 @@ need to account for channels AND SUBCHANNELS!!!!!
     exit(-4);
   }
 
-  // note: youre gonna have a bad time with these pointers
   // dirlist should be the final string array of all 
   // channel dirs and subdirs
   char ** dirlist = NULL;
@@ -515,19 +421,7 @@ need to account for channels AND SUBCHANNELS!!!!!
   channel_properties ** channels = NULL;
   channel_properties * channel = NULL;
 
-  //printf("channels ptr les go %p\n", channels);
-
-
-  // loop through dirs (non recursive)
-  // get the recursive part working later ig...
-
-  // char * rpath;
-  // rpath = malloc(SMALL_HDF5_STR * sizeof(char));
-  // if (rpath == NULL) {
-  //   fprintf(stderr, "Malloc failure\n");
-  //   exit(-6);
-  // }
-  // ^^ this might be a problem actually
+  // loop through dirs
   char rpath[MED_HDF5_STR];
 
   char current_dir[SMALL_HDF5_STR];
@@ -570,7 +464,6 @@ need to account for channels AND SUBCHANNELS!!!!!
 
         if (num_channels == 0){
           // start allocating memory for channels arr
-          // this is no different than just having the realloc like i did before..
           channels = (channel_properties**)malloc(sizeof(channel_properties*));
           if (!channels) {
             fprintf(stderr, "Malloc failure\n");
@@ -583,15 +476,10 @@ need to account for channels AND SUBCHANNELS!!!!!
             exit(-5);
           }
         }
-
-        //channels[num_channels] = malloc(sizeof(channel_properties*));
-
-        //channel_properties * channel;// = NULL;
         channel = _get_channel_properties(top_level_dir, rpath, ent->d_name, drf_read_obj->access_mode, drf_read_obj->rdcc_nbytes);
         channels[num_channels] = channel;
         
         num_channels++;
-        
 
       }
     }
@@ -622,7 +510,6 @@ just init the read object from top level dir
   memcpy(start_dir, &directory[0], 7);
 
   char * abspath = NULL;
-
   char * access_mode = NULL;
 
   // first determine the type of the top level dir
@@ -664,9 +551,6 @@ just init the read object from top level dir
   read_obj->rdcc_nbytes = rdcc_nbytes;
   _get_channels_in_dir(read_obj); // works locally only
 
-
-
-
   return(read_obj);
 
 }
@@ -689,16 +573,8 @@ docs here, FIX ME
 {
   if (drf_read_obj != NULL) {
     if (drf_read_obj->top_level_directory != NULL) {
-      //printf("finna free top lev dir\n");
       free(drf_read_obj->top_level_directory);
-      //printf("freed top lev dir\n");
     }
-
-    // you never malloc'd the access_mode string dummy
-    // if (drf_read_obj->access_mode != NULL) {
-    //   free(drf_read_obj->access_mode);
-    //   printf("freed access mode\n");
-    // }
 
     if (drf_read_obj->num_channels > 0) {
       for (int i = 0; i < drf_read_obj->num_channels; i++) {
@@ -762,29 +638,32 @@ return a pair of ints
   strcat(channel_dir, "/");
   strcat(channel_dir, channel_name);
   // tmp only
-  printf("channel dir is  %s\n", channel_dir);
-  fflush(stdout);
+  //printf("channel dir is  %s\n", channel_dir);
+  //fflush(stdout);
 
   //char list_drf[SMALL_HDF5_STR] = "digital_rf";
   
   // init interpreter
-  Py_Initialize();
+  if (!Py_IsInitialized()) {
+    Py_Initialize();
+  }
+  
   // import list_drf.py
   //PyObject * modstr = PyUnicode_FromString(list_drf);
   // PyRun_SimpleString("import sys");
   // PyRun_SimpleString("print(sys.path)");
-  // printf("made modstr\n");
-  // fflush(stdout);
+  printf("made modstr\n");
+  fflush(stdout);
 
   PyObject * list_drf_mod = PyImport_ImportModule("digital_rf"); // DECREF ME
   if (!list_drf_mod) {
-    PyErr_Print();
+    //PyErr_Print();
     fprintf(stderr, "Unable to import digital_rf\n");
+    fflush(stderr);
     exit(-15);
   } else {
-    // looks like best practice is to keep this in this else block
-    //printf("imported mod\n");
-    //fflush(stdout);
+    printf("imported mod\n");
+    fflush(stdout);
     // get a reference to list_drf.ilsdrf
     char func[SMALL_HDF5_STR] = "ilsdrf";
     PyObject * ilsdrf = PyObject_GetAttrString(list_drf_mod, func); // DECREF ME
@@ -904,13 +783,17 @@ return a pair of ints
     bounds[0] = s_bound;
     bounds[1] = e_bound;
 
-    Py_DECREF(args);
     Py_DECREF(py_path_gen);
+    Py_DECREF(args);
     Py_DECREF(ilsdrf);
     Py_DECREF(list_drf_mod);
   }
   
-  Py_Finalize();
+  if (Py_IsInitialized()) {
+    int ret = Py_FinalizeEx();
+    printf("ret value: %d\n", ret);
+  }
+  
   return(bounds);
 }
 
