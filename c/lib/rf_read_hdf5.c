@@ -33,6 +33,7 @@ what to do about multiple calls to python functions?
 #else
 #  include <unistd.h>
 #  include <glob.h>
+#  include <regex.h>
 #endif
 
 #include <stdio.h>
@@ -49,7 +50,6 @@ what to do about multiple calls to python functions?
 
 #include "digital_rf.h"
 #include "hdf5.h"
-#include <Python.h>
 
 
 // helper function(s)
@@ -137,6 +137,19 @@ https://stackoverflow.com/questions/15057010/comparing-version-numbers-in-c
     if (bugfix1 > bugfix2) return 1;
     return 0;
 }
+
+static int cmpstringp(const void *p1, const void *p2) 
+/* pulled from https://www.man7.org/linux/man-pages/man3/qsort.3.html */
+{
+  return strcmp(*(const char **) p1, *(const char **) p2);
+}
+
+
+
+
+
+
+
 
 
 void _read_properties(top_level_dir_properties * dir_props, char* chan_path) 
@@ -595,12 +608,124 @@ docs here, FIX ME
         //printf("freed chan obj\n");
       }
     }
+    free(drf_read_obj->channel_names);
+    free(drf_read_obj->channels);
 
     drf_read_obj->num_channels = 0;
     free(drf_read_obj);
     //printf("freed read obj\n");
   }
 
+}
+
+
+char ** _ilsdrf(Digital_rf_read_object * drf_read_obj, char * chan_name)
+/*
+docs here
+path is assumed to be a channel path (absolute)
+*/
+{
+  char ** fnames = NULL;
+  int chan_idx = -1;
+  char channel_dir[MED_HDF5_STR];
+
+  for (int i = 0; i < drf_read_obj->num_channels; i++) {
+    // this could definitely be optimized but lets get it working first!
+    if (strcmp(drf_read_obj->channel_names[i], chan_name) == 0) {
+      chan_idx = i;
+    }
+  }
+
+  if (chan_idx < 0) {
+    fprintf(stderr, "No channel found named %s\n", chan_name);
+    exit(-16);
+  }
+
+  channel_dir[0] = '\0';
+  strcat(channel_dir, drf_read_obj->channels[chan_idx]->top_level_dir_meta->top_level_dir);
+  strcat(channel_dir, "/");
+  strcat(channel_dir, chan_name);
+
+  bool drf = (check_file_exists(channel_dir, "drf_properties.h5") || check_file_exists(channel_dir, "drf_metadata.h5"));
+  bool dmd = (check_file_exists(channel_dir, "dmd_properties.h5") || check_file_exists(channel_dir, "dmd_metadata.h5"));
+  
+  regex_t re_subdir;
+  if (regcomp(&re_subdir, "[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]-[0-9][0-9]-[0-9][0-9]", 0) != 0) {
+    fprintf(stderr, "Problem compiling regex\n");
+    exit(-20);
+  }
+
+  DIR * dir;
+  DIR * subdir;
+  struct dirent * ent;
+  struct dirent * subent;
+  char current_dir[MED_HDF5_STR];
+  char current_file[MED_HDF5_STR]; // using med str because this is supposed to contain abspath
+  //char ** dirnames;
+  //int numdirs = 0;
+  int numfiles = 0;
+
+  if (drf || dmd) {
+    // there must exist some property file for this 
+    // to be a valid channel directory
+
+    dir = opendir(channel_dir);
+    if (!dir) {
+      fprintf(stderr, "Problem opening directory %s\n", channel_dir);
+      exit(-21);
+    }
+
+    while ((ent = readdir(dir)) != NULL) {
+      if ((strcmp(ent->d_name, ".") == 0) || (strcmp(ent->d_name, "..") == 0)) {
+        continue;
+      }
+
+      if (regexec(&re_subdir, ent->d_name, 0, NULL, 0) == 0) {
+        // found matching subdir
+        //printf("matched dir %s\n", ent->d_name);
+        current_dir[0] = '\0';
+        strcat(current_dir, channel_dir);
+        strcat(current_dir, "/");
+        strcat(current_dir, ent->d_name);
+
+
+        // now we have to find the filenames IN ORDER
+        // well,,, first just get fnames, THEN sort
+        subdir = opendir(current_dir);
+        if (!subdir) {
+          fprintf(stderr, "Unable to open directory %s\n", current_dir);
+          exit(-23);
+        }
+
+        while ((subent = readdir(subdir)) != NULL) {
+          // get filenames from this subdir
+          if ((strstr(subent->d_name, "rf@") != NULL) && (strstr(subent->d_name, ".h5") != NULL)) {
+            // valid filename
+            fnames = realloc(fnames, (1 + numfiles) * sizeof(char*));
+            if (!fnames) {
+              fprintf(stderr, "Realloc failure\n");
+              exit(-22);
+            }
+
+            //printf("found file %s\n", subent->d_name);
+
+            current_file[0] = '\0';
+            strcat(current_file, current_dir);
+            strcat(current_file, "/");
+            strcat(current_file, subent->d_name);
+
+            fnames[numfiles] = malloc((strlen(current_file) + 1) * sizeof(char));
+            strcpy(fnames[numfiles], current_file);
+            numfiles++;
+          }
+        }
+      }
+    }
+    qsort(fnames, numfiles, sizeof(char*), cmpstringp);
+
+  }
+  printf("total files found: %d\n", numfiles);
+  return(fnames);
 }
 
 
@@ -613,13 +738,14 @@ return a pair of ints
   unsigned long long bounds[2];
   unsigned long long s_bound, e_bound;
   unsigned long long tmp_bounds[2];
-  char channel_dir[MED_HDF5_STR];
-  int chan_idx = -1;
 
   if (strcmp(drf_read_obj->access_mode, "local") != 0) {
     fprintf(stderr, "Access mode %s not implemented\n", drf_read_obj->access_mode);
     exit(-15);
   }
+
+  /* int chan_idx = -1;
+  char channel_dir[MED_HDF5_STR];
 
   for (int i = 0; i < drf_read_obj->num_channels; i++) {
     // this could definitely be optimized but lets get it working first!
@@ -636,174 +762,226 @@ return a pair of ints
   channel_dir[0] = '\0';
   strcat(channel_dir, drf_read_obj->channels[chan_idx]->top_level_dir_meta->top_level_dir);
   strcat(channel_dir, "/");
-  strcat(channel_dir, channel_name);
-  // tmp only
-  //printf("channel dir is  %s\n", channel_dir);
-  //fflush(stdout);
+  strcat(channel_dir, channel_name); */
 
-  //char list_drf[SMALL_HDF5_STR] = "digital_rf";
-  
-  // init interpreter
-  if (!Py_IsInitialized()) {
-    Py_Initialize();
-  }
-  
-  // import list_drf.py
-  //PyObject * modstr = PyUnicode_FromString(list_drf);
-  // PyRun_SimpleString("import sys");
-  // PyRun_SimpleString("print(sys.path)");
-  printf("made modstr\n");
-  fflush(stdout);
+  char ** pathlist = NULL;
+  pathlist = _ilsdrf(drf_read_obj, channel_name);
+  /* printf("first file is %s\n", tmp[0]);
+  printf("second file is %s\n", tmp[1]);
+  printf("third file is %s\n", tmp[2]);
+  printf("19th file? %s\n", tmp[19]);
 
-  PyObject * list_drf_mod = PyImport_ImportModule("digital_rf"); // DECREF ME
-  if (!list_drf_mod) {
-    //PyErr_Print();
-    fprintf(stderr, "Unable to import digital_rf\n");
-    fflush(stderr);
-    exit(-15);
+  if (!tmp[19]) {
+    printf("ayy this is exactly what we want\n");
   } else {
-    printf("imported mod\n");
-    fflush(stdout);
-    // get a reference to list_drf.ilsdrf
-    char func[SMALL_HDF5_STR] = "ilsdrf";
-    PyObject * ilsdrf = PyObject_GetAttrString(list_drf_mod, func); // DECREF ME
-    if (!ilsdrf) {
-      fprintf(stderr, "Unable to access list_drf.ilsdrf()\n");
-      exit(-16);
+    printf("aw heck\n");
+  } */
+
+
+  bool firstpath = true;
+  unsigned long long total_samples;
+  int pthidx = 0;
+  while (pathlist[pthidx] != NULL) {
+    char * datapath = pathlist[pthidx];
+
+    // ignore properties file
+    if (strstr(datapath, "drf_properties.h5") != NULL) {
+      continue;
     }
-    //printf("got first ref\n");
-    //fflush(stdout);
-    PyObject * args = PyTuple_Pack(9, PyUnicode_FromString(channel_dir), // DECREF ME
-                                      Py_False,   // recursive
-                                      Py_False,   // reverse
-                                      Py_None,    // starttime
-                                      Py_None,    // endtime
-                                      Py_True,    // include_drf
-                                      Py_False,   // include_dmd
-                                      Py_None,    // include_drf_properties
-                                      Py_None);   // include_dmd_properties
-    //printf("packed args\n");
-    //fflush(stdout);
-    // py_path_gen is a python generator of drf files and metadata files
-    // in the given channel directory, time ordered
-    PyObject * py_path_gen = PyObject_CallObject(ilsdrf, args); // DECREF ME
-    
-    //printf("got some kind of result\n");
-    //fflush(stdout);
-
-    //int check = PyIter_Check(py_path_gen);
-    //printf("iterator? %d\n", check);
-
-    PyObject * path;
-    bool firstpath = true;
-    unsigned long long total_samples;
-    while ((path = PyIter_Next(py_path_gen))) { // DECREF ME
-      //printf("its a string right??? %d\n", PyUnicode_Check(path));
-      char * datapath = PyUnicode_AsUTF8(path);
-      //printf("got path %s\n", datapath);
-
-      // ignore properties file
-      if (strstr(datapath, "drf_properties.h5") != NULL) {
-        Py_DECREF(path);
-        continue;
-      }
       
-      hid_t prop_file, fapl, dset, dshape, space;
-      char attr_name[SMALL_HDF5_STR];
-      hsize_t size;
-      herr_t status;
-      H5O_info_t info;
+    hid_t prop_file, fapl, dset, dshape, space;
+    char attr_name[SMALL_HDF5_STR];
+    hsize_t size;
+    herr_t status;
+    H5O_info_t info;
 
-      if ((fapl = H5Pcreate(H5P_FILE_ACCESS)) == H5I_INVALID_HID) {
-        fprintf(stderr, "Problem opening file %s\n", datapath);
-        exit(-8);
-      }
+    if ((fapl = H5Pcreate(H5P_FILE_ACCESS)) == H5I_INVALID_HID) {
+      fprintf(stderr, "Problem opening file %s\n", datapath);
+      exit(-8);
+    }
 
-      unsigned mode = H5F_ACC_RDONLY;
-      if ((prop_file = H5Fopen(datapath, mode, fapl)) == H5I_INVALID_HID) {
-        fprintf(stderr, "Problem opening file %s\n", datapath);
-        exit(-9);
-      }
+    unsigned mode = H5F_ACC_RDONLY;
+    if ((prop_file = H5Fopen(datapath, mode, fapl)) == H5I_INVALID_HID) {
+      fprintf(stderr, "Problem opening file %s\n", datapath);
+      exit(-9);
+    }
 
-      H5Fget_filesize(prop_file, &size);
-      if (size <= 0) {
-        fprintf(stderr, "No data found in file %s\n", datapath);
+    H5Fget_filesize(prop_file, &size);
+    if (size <= 0) {
+      fprintf(stderr, "No data found in file %s\n", datapath);
+      exit(-10);
+    }
+
+    if ((dset = H5Dopen2(prop_file, "./rf_data_index", H5P_DEFAULT)) == H5I_INVALID_HID) {
+      fprintf(stderr, "Unable to get rf_data_index\n");
+      exit(-10);
+    }
+
+    if (H5Dread(dset, H5T_NATIVE_ULLONG, H5S_ALL, H5S_ALL, H5P_DEFAULT, &tmp_bounds) < 0) {
+      fprintf(stderr, "Unable to get rf_data_index\n");
+      exit(-10);
+    }
+
+    if (firstpath) {
+      // set start bound if first path in list
+      s_bound = tmp_bounds[0];
+      firstpath = false;
+    } else {
+      // keep resetting last index until you break out of the while loop
+      if ((dshape = H5Dopen2(prop_file, "./rf_data", H5P_DEFAULT)) == H5I_INVALID_HID) {
+        fprintf(stderr, "Unable to get rf_data\n");
         exit(-10);
       }
-
-      if ((dset = H5Dopen2(prop_file, "./rf_data_index", H5P_DEFAULT)) == H5I_INVALID_HID) {
-        fprintf(stderr, "Unable to get rf_data_index\n");
-        exit(-10);
-      }
-
-      if (H5Dread(dset, H5T_NATIVE_ULLONG, H5S_ALL, H5S_ALL, H5P_DEFAULT, &tmp_bounds) < 0) {
-        fprintf(stderr, "Unable to get rf_data_index\n");
-        exit(-10);
-      }
-
-      if (firstpath) {
-        // set start bound if first path in list
-        s_bound = tmp_bounds[0];
-        firstpath = false;
-      } else {
-        // keep resetting last index until you break out of the while loop
-        if ((dshape = H5Dopen2(prop_file, "./rf_data", H5P_DEFAULT)) == H5I_INVALID_HID) {
-          fprintf(stderr, "Unable to get rf_data\n");
-          exit(-10);
-        }
-        space = H5Dget_space(dshape);
-        int rank = H5Sget_simple_extent_ndims(space);
-        if (rank >= 0) {
-          //printf("you are safe to follow the phind example\n");
-          hsize_t dims[rank];
-          H5Sget_simple_extent_dims(space, dims, NULL);
-          total_samples = dims[0];
+      space = H5Dget_space(dshape);
+      int rank = H5Sget_simple_extent_ndims(space);
+      if (rank >= 0) {
+        //printf("you are safe to follow the phind example\n");
+        hsize_t dims[rank];
+        H5Sget_simple_extent_dims(space, dims, NULL);
+        total_samples = dims[0];
 
           /* printf("Dimensions: ");
           for (int i = 0; i < rank; i++) {
             printf("%lld ", dims[i]);
           }
           printf("\n"); */
-        } else {
-          fprintf(stderr, "Unable to read rf_data shape\n");
-          exit(-18);
-        }
-
-        H5Dclose(dshape);
+      } else {
+        fprintf(stderr, "Unable to read rf_data shape\n");
+        exit(-18);
       }
 
-      Py_DECREF(path);
-      H5Dclose(dset);
-      H5Fclose(prop_file);
+      H5Dclose(dshape);
+      pthidx++;
     }
 
-    // last_start_sample = tmp_bounds[0]
-    // last_index = tmp_bounds[1]
-    e_bound = (tmp_bounds[0] + (total_samples - (tmp_bounds[1] + 1)));
-    bounds[0] = s_bound;
-    bounds[1] = e_bound;
+    H5Dclose(dset);
+    H5Fclose(prop_file);
+  }
 
-    Py_DECREF(py_path_gen);
-    Py_DECREF(args);
-    Py_DECREF(ilsdrf);
-    Py_DECREF(list_drf_mod);
+  for (int i = 0; i < pthidx; i++) {
+    free(pathlist[i]);
   }
-  
-  if (Py_IsInitialized()) {
-    int ret = Py_FinalizeEx();
-    printf("ret value: %d\n", ret);
-  }
+  free(pathlist);
+
+  // last_start_sample = tmp_bounds[0]
+  // last_index = tmp_bounds[1]
+  e_bound = (tmp_bounds[0] + (total_samples - (tmp_bounds[1] + 1)));
+  bounds[0] = s_bound;
+  bounds[1] = e_bound;
   
   return(bounds);
 }
 
 
-// // return type for this next one should be an array of data, float probably
-// float * read_vector(Digital_rf_read_object * drf_read_obj, int start_sample, int num_samples, char * channel_name)
-// /*
-// also also docs here
-// */
-// {
+void _read(top_level_dir_properties * dir_props, long start_sample, long long end_sample, char ** paths,
+ long long ** data_dict, bool len_only, int sub_chan_idx)
+/*
+docs here
+*/
+{
+  if (strcmp(dir_props->access_mode, "local") != 0) {
+    fprintf(stderr, "Access mode %s not implemented\n", dir_props->access_mode);
+    exit(-20);
+  }
 
-// }
+  bool ignore_subchan = (sub_chan_idx > 0) ? true : false;
+
+
+
+
+
+
+}
+
+
+char ** _get_file_list(long long s0, long long s1, long double sps, uint64_t scs, uint64_t fcm)
+/*
+docs here
+*/
+{
+  if ((s1 - s0) > 1000000000000) {
+    fprintf(stderr, "Requested read size, %ld samples, is very large\n");
+  }
+
+  char ** fileList = NULL;
+
+  long long start_ts = (long long)(s0 / sps);
+  long long end_ts = (long long)(s1 / sps) + 1;
+  long long start_msts = (long long)((s0 / sps) * 1000);
+  long long end_msts = (long long)((s1 / sps) * 1000);
+
+  long long start_sub_ts = (long long)(floor(start_ts / scs) * scs);
+  long long end_sub_ts = (long long)(floor(end_ts / scs) * scs);
+
+  printf("start is %d, end is %d\n", start_sub_ts, end_sub_ts);
+  /* for (uint64_t sub_ts = start_sub_ts; sub_ts < (end_sub_ts + scs); sub_ts += scs) {
+    struct tm * utc_time;
+    sub_ts = (time_t)sub_ts;
+    time_t sub_time = time(&sub_ts);
+    utc_time = gmtime(&sub_time);
+
+    char subdir_str[SMALL_HDF5_STR];
+    strftime(subdir_str, SMALL_HDF5_STR, "%Y-%m-%dT%H-%M-%S", utc_time);
+    printf("time is &s\n", subdir_str);
+
+  } */
+
+  return(fileList);
+
+}
+
+
+// no clue what to do for an orderedDict return type
+long long ** get_continuous_blocks(Digital_rf_read_object * drf_read_obj, long long start_sample, long long end_sample, char * channel_name)
+/*
+docs here
+*/
+{
+  int chan_idx = -1;
+
+  for (int i = 0; i < drf_read_obj->num_channels; i++) {
+    // this could definitely be optimized but lets get it working first!
+    if (strcmp(drf_read_obj->channel_names[i], channel_name) == 0) {
+      chan_idx = i;
+    }
+  }
+
+  if (chan_idx < 0) {
+    fprintf(stderr, "No channel found named %s\n", channel_name);
+    exit(-16);
+  }
+
+  uint64_t subdir_cadence_secs = drf_read_obj->channels[chan_idx]->top_level_dir_meta->subdir_cadence_secs;
+  uint64_t file_cadence_msecs = drf_read_obj->channels[chan_idx]->top_level_dir_meta->file_cadence_millisecs;
+  long double sample_rate = drf_read_obj->channels[chan_idx]->top_level_dir_meta->sample_rate;
+
+  char ** paths = NULL;
+  paths = _get_file_list(start_sample, end_sample, sample_rate, subdir_cadence_secs, file_cadence_msecs);
+
+  long long ** cont_blocks = NULL;
+  _read(drf_read_obj->channels[chan_idx]->top_level_dir_meta, start_sample, end_sample, paths, cont_blocks, false, -1);
+
+
+  // still need to combine blocks
+  return(cont_blocks);
+}
+
+
+float ** read_vector(Digital_rf_read_object * drf_read_obj, long long start_sample,
+ int num_samples, char * channel_name, char * sub_channel)
+/*
+also also docs here
+*/
+{
+  if (num_samples < 1) {
+    fprintf(stderr, "Number of samples requested must be greater than 0, not %d\n", num_samples);
+    exit(-19);
+  }
+  float ** vector = NULL;
+  long long end_sample = start_sample + ((long long)num_samples - 1);
+
+  
+
+  return(vector);
+}
 

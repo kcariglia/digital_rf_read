@@ -42,6 +42,9 @@ int main(int argc, char* argv[])
     bounds1 = get_bounds(read_obj, "junk0");
     printf("got bounds: %ld  %ld\n", bounds1[0], bounds1[1]);
 
+    long long ** cont_data_arr = NULL;
+    cont_data_arr = get_continuous_blocks(read_obj, bounds1[0], bounds1[1], read_obj->channel_names[0]);
+
     digital_rf_close_read_hdf5(read_obj);
     read_obj = NULL;
 
