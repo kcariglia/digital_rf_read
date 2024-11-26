@@ -498,6 +498,7 @@ need to account for channels AND SUBCHANNELS!!!!!
     }
     
   }
+  closedir(dir);
   drf_read_obj->num_channels = num_channels;
   drf_read_obj->channel_names = dirlist;
   drf_read_obj->channels = channels;
@@ -719,12 +720,14 @@ path is assumed to be a channel path (absolute)
             numfiles++;
           }
         }
+        closedir(subdir);
       }
     }
     qsort(fnames, numfiles, sizeof(char*), cmpstringp);
-
+    regfree(&re_subdir);
+    closedir(dir);
   }
-  printf("total files found: %d\n", numfiles);
+  //printf("total files found: %d\n", numfiles);
   return(fnames);
 }
 
@@ -744,39 +747,8 @@ return a pair of ints
     exit(-15);
   }
 
-  /* int chan_idx = -1;
-  char channel_dir[MED_HDF5_STR];
-
-  for (int i = 0; i < drf_read_obj->num_channels; i++) {
-    // this could definitely be optimized but lets get it working first!
-    if (strcmp(drf_read_obj->channel_names[i], channel_name) == 0) {
-      chan_idx = i;
-    }
-  }
-
-  if (chan_idx < 0) {
-    fprintf(stderr, "No channel found named %s\n", channel_name);
-    exit(-16);
-  }
-
-  channel_dir[0] = '\0';
-  strcat(channel_dir, drf_read_obj->channels[chan_idx]->top_level_dir_meta->top_level_dir);
-  strcat(channel_dir, "/");
-  strcat(channel_dir, channel_name); */
-
   char ** pathlist = NULL;
   pathlist = _ilsdrf(drf_read_obj, channel_name);
-  /* printf("first file is %s\n", tmp[0]);
-  printf("second file is %s\n", tmp[1]);
-  printf("third file is %s\n", tmp[2]);
-  printf("19th file? %s\n", tmp[19]);
-
-  if (!tmp[19]) {
-    printf("ayy this is exactly what we want\n");
-  } else {
-    printf("aw heck\n");
-  } */
-
 
   bool firstpath = true;
   unsigned long long total_samples;
@@ -894,26 +866,29 @@ docs here
 }
 
 
-char ** _get_file_list(long long s0, long long s1, long double sps, uint64_t scs, uint64_t fcm)
+char ** _get_file_list(unsigned long long s0, unsigned long long s1, long double sps, unsigned long long scs, unsigned long long fcm)
 /*
 docs here
 */
 {
-  if ((s1 - s0) > 1000000000000) {
-    fprintf(stderr, "Requested read size, %ld samples, is very large\n");
+  printf("s0: %llu  s1: %llu\n", s0, s1);
+  unsigned long long dif = s1 - s0;
+  if (dif > 1e12) {
+    printf("dif is %llu\n", dif);
+    fprintf(stderr, "Requested read size, %llu samples, is very large\n", dif);
   }
 
   char ** fileList = NULL;
 
-  long long start_ts = (long long)(s0 / sps);
-  long long end_ts = (long long)(s1 / sps) + 1;
-  long long start_msts = (long long)((s0 / sps) * 1000);
-  long long end_msts = (long long)((s1 / sps) * 1000);
+  unsigned long long start_ts = (s0 / sps);
+  unsigned long long end_ts = (s1 / sps) + 1;
+  unsigned long long start_msts = ((s0 / sps) * 1000);
+  unsigned long long end_msts = ((s1 / sps) * 1000);
 
-  long long start_sub_ts = (long long)(floor(start_ts / scs) * scs);
-  long long end_sub_ts = (long long)(floor(end_ts / scs) * scs);
+  unsigned long long start_sub_ts = (floor(start_ts / scs) * scs);
+  unsigned long long end_sub_ts = (floor(end_ts / scs) * scs);
 
-  printf("start is %d, end is %d\n", start_sub_ts, end_sub_ts);
+  printf("start is %llu, end is %llu\n", start_sub_ts, end_sub_ts);
   /* for (uint64_t sub_ts = start_sub_ts; sub_ts < (end_sub_ts + scs); sub_ts += scs) {
     struct tm * utc_time;
     sub_ts = (time_t)sub_ts;
@@ -932,7 +907,7 @@ docs here
 
 
 // no clue what to do for an orderedDict return type
-long long ** get_continuous_blocks(Digital_rf_read_object * drf_read_obj, long long start_sample, long long end_sample, char * channel_name)
+unsigned long long ** get_continuous_blocks(Digital_rf_read_object * drf_read_obj, unsigned long long start_sample, unsigned long long end_sample, char * channel_name)
 /*
 docs here
 */
@@ -956,9 +931,10 @@ docs here
   long double sample_rate = drf_read_obj->channels[chan_idx]->top_level_dir_meta->sample_rate;
 
   char ** paths = NULL;
-  paths = _get_file_list(start_sample, end_sample, sample_rate, subdir_cadence_secs, file_cadence_msecs);
+  printf("start sample is %llu, end sample is %llu\n", start_sample, end_sample);
+  paths = _get_file_list(start_sample, end_sample, sample_rate, (unsigned long long)subdir_cadence_secs, (unsigned long long)file_cadence_msecs);
 
-  long long ** cont_blocks = NULL;
+  unsigned long long ** cont_blocks = NULL;
   _read(drf_read_obj->channels[chan_idx]->top_level_dir_meta, start_sample, end_sample, paths, cont_blocks, false, -1);
 
 

@@ -262,8 +262,7 @@ EXPORT int digital_rf_write_blocks_hdf5(
 	EXPORT unsigned long long * get_bounds(Digital_rf_read_object * drf_read_obj, char * channel_name);
 	EXPORT float ** read_vector(Digital_rf_read_object * drf_read_obj, long long start_sample,
  int num_samples, char * channel_name, char * sub_channel);
-	EXPORT long long ** get_continuous_blocks(Digital_rf_read_object * drf_read_obj,
-	 long long start_sample, long long end_sample, char * channel_name);
+	EXPORT unsigned long long ** get_continuous_blocks(Digital_rf_read_object * drf_read_obj, unsigned long long start_sample, unsigned long long end_sample, char * channel_name);
 	EXPORT void digital_rf_close_read_hdf5(Digital_rf_read_object * drf_read_obj);
 #endif
 

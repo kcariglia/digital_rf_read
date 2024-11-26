@@ -22,6 +22,8 @@ print("got bounds: {} {}".format(s1, e1))
 cont_data_arr = dro1.get_continuous_blocks(s1, e1, channels1[0])
 print("got data arr:")
 print(cont_data_arr)
+print(cont_data_arr.keys())
+print(cont_data_arr[139436823001])
 print()
 
 
@@ -35,6 +37,8 @@ print("got bounds: {} {}".format(s2, e2))
 cont_data_arr = dro2.get_continuous_blocks(s2, e2, channels2[0])
 print("got data arr:")
 print(cont_data_arr)
+print(cont_data_arr.keys())
+print(cont_data_arr[1705087365000000])
 print()
 
 
@@ -48,5 +52,7 @@ print("got bounds: {} {}".format(s3, e3))
 cont_data_arr = dro3.get_continuous_blocks(s3, e3, channels3[0])
 print("got data arr:")
 print(cont_data_arr)
+print(cont_data_arr.keys())
+print(cont_data_arr[1705087365000000])
 print()
 
