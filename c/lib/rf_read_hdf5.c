@@ -184,7 +184,7 @@ docs here
 
 
     // here prop_filename should exist
-    hid_t prop_file, fapl, attr_id, group_id, obj_id;
+    hid_t prop_file, fapl, attr_id;
     char attr_name[SMALL_HDF5_STR];
     hsize_t size;
     herr_t status;
@@ -236,7 +236,7 @@ docs here
       // i wish switch blocks worked with strings
       // the following is in lieu of that
       if (strcmp(attr_name, "digital_rf_time_description") == 0) {
-        char time_desc[MED_HDF5_STR];
+        char time_desc[BIG_HDF5_STR];
         if ((status = H5Aread(attr_id, attr_dtype, &time_desc)) < 0) {
           fprintf(stderr, "Problem reading attribute %s\n", attr_name);
           exit(-13);
@@ -318,7 +318,7 @@ docs here
           exit(-13);
         }
       }
-
+      H5Tclose(attr_dtype);
       H5Aclose(attr_id);
     }
 
@@ -342,6 +342,7 @@ docs here
     }
 
     H5Fclose(prop_file);
+    H5Pclose(fapl);
 
   } else {
     fprintf(stderr, "access mode %s not implemented\n", dir_props->access_mode);
@@ -366,17 +367,47 @@ docs here
     exit(-6);
   }
 
-  dir_props->access_mode = access;
-  dir_props->top_level_dir = top_lev_dir;
-  dir_props->channel_name = chan_name;
+  dir_props->access_mode = malloc((strlen(access) + 1) * sizeof(char));
+  if (!dir_props->access_mode) {
+    fprintf(stderr, "Malloc failure\n");
+    exit(-23);
+  }
+  strcpy(dir_props->access_mode, access);
+
+  dir_props->top_level_dir = malloc((strlen(top_lev_dir) + 1) * sizeof(char));
+  if (!dir_props->top_level_dir) {
+    fprintf(stderr, "Malloc failure\n");
+    exit(-24);
+  }
+  strcpy(dir_props->top_level_dir, top_lev_dir);
+
+  dir_props->channel_name = malloc((strlen(chan_name) + 1) * sizeof(char));
+  if (!dir_props->channel_name) {
+    fprintf(stderr, "Malloc failure\n");
+    exit(-25);
+  }
+  strcpy(dir_props->channel_name, chan_name);
+
   dir_props->rdcc_nbytes = rdcc_nbytes;
   dir_props->cachedFilename = NULL;
-  dir_props->min_version = "2.0"; // hardcoded just like the python version
-  dir_props->max_version = DIGITAL_RF_VERSION;
+
+  dir_props->min_version = malloc(4 * sizeof(char));
+  if (!dir_props->min_version) {
+    fprintf(stderr, "Malloc failure\n");
+    exit(-26);
+  }
+  strcpy(dir_props->min_version, "2.0"); // hardcoded just like the python version
+
+  dir_props->max_version = malloc((strlen(DIGITAL_RF_VERSION) + 1) * sizeof(char));
+  if (!dir_props->max_version) {
+    fprintf(stderr, "Malloc failure\n");
+    exit(-27);
+  }
+  strcpy(dir_props->max_version, DIGITAL_RF_VERSION);
   //dir_props->cachedFile = NULL;
+
+
   _read_properties(dir_props, chan_path);
-
-
 
 
   channel_properties * channel = NULL;
@@ -387,7 +418,12 @@ docs here
     }
 
   // set some channel attributes here
-  channel->channel_name = chan_name;
+  channel->channel_name = malloc((strlen(chan_name) + 1) * sizeof(char));
+  if (!channel->channel_name) {
+    fprintf(stderr, "Malloc failure\n");
+    exit(-7);
+  }
+  strcpy(channel->channel_name, chan_name);
   channel->top_level_dir_meta = dir_props;
 
 
@@ -470,7 +506,7 @@ need to account for channels AND SUBCHANNELS!!!!!
           exit(-5);
         }
 
-        dirlist[num_channels] = malloc((strlen(rpath) + 1) * sizeof(char));
+        dirlist[num_channels] = malloc((strlen(ent->d_name) + 1) * sizeof(char));
         strcpy(dirlist[num_channels], ent->d_name);
         //printf("found channel: %s\n", dirlist[num_channels]);
         fflush(stdout);
@@ -489,7 +525,8 @@ need to account for channels AND SUBCHANNELS!!!!!
             exit(-5);
           }
         }
-        channel = _get_channel_properties(top_level_dir, rpath, ent->d_name, drf_read_obj->access_mode, drf_read_obj->rdcc_nbytes);
+        channel = _get_channel_properties(drf_read_obj->top_level_directory, rpath, dirlist[num_channels], drf_read_obj->access_mode, drf_read_obj->rdcc_nbytes);
+        // ^^^ note that rpath is on the stack... could cause issues
         channels[num_channels] = channel;
         
         num_channels++;
@@ -523,23 +560,23 @@ just init the read object from top level dir
   char start_dir[8];
   memcpy(start_dir, &directory[0], 7);
 
-  char * abspath = NULL;
-  char * access_mode = NULL;
+  char abspath[MED_HDF5_STR];
+  char access_mode[SMALL_HDF5_STR];
 
   // first determine the type of the top level dir
   if (strstr(start_dir, "file://") != NULL) {
-    access_mode = "file";
-    abspath = directory;
+    strcpy(access_mode, "file");
+    strcpy(abspath, directory);
   } else if (strstr(start_dir, "http://") != NULL) {
-    access_mode = "http";
-    abspath = directory;
+    strcpy(access_mode, "http");
+    strcpy(abspath, directory);
   } else if (strstr(start_dir, "ftp://")) {
-    access_mode = "ftp";
-    abspath = directory;
+    strcpy(access_mode, "ftp");
+    strcpy(abspath, directory);
   } else {
     // local dir
-    access_mode = "local";
-    abspath = realpath(directory, NULL);
+    strcpy(access_mode, "local");
+    strcpy(abspath, realpath(directory, NULL));
   }
 
   Digital_rf_read_object * read_obj = NULL;
@@ -560,8 +597,20 @@ just init the read object from top level dir
     exit(-2);
   }
 
-  read_obj->top_level_directory = abspath;
-  read_obj->access_mode = access_mode;
+  read_obj->top_level_directory = malloc((strlen(abspath) + 1) * sizeof(char));
+  if (!read_obj->top_level_directory) {
+    fprintf(stderr, "Malloc failure\n");
+    exit(-12);
+  }
+  strcpy(read_obj->top_level_directory, abspath);
+
+
+  read_obj->access_mode = malloc((strlen(access_mode) + 1) * sizeof(char));
+  if (!read_obj->access_mode) {
+    fprintf(stderr, "Malloc failure\n");
+    exit(-3);
+  }
+  strcpy(read_obj->access_mode, access_mode);
   read_obj->rdcc_nbytes = rdcc_nbytes;
   _get_channels_in_dir(read_obj); // works locally only
 
@@ -576,6 +625,7 @@ also docs here
 */
 {
   // you still have to sort this alphabetically
+  // just do the qsort thing again
   return(drf_read_obj->channel_names);
 
 }
@@ -589,12 +639,20 @@ docs here, FIX ME
     if (drf_read_obj->top_level_directory != NULL) {
       free(drf_read_obj->top_level_directory);
     }
+    if (drf_read_obj->access_mode != NULL) {
+      free(drf_read_obj->access_mode);
+    }
 
     if (drf_read_obj->num_channels > 0) {
       for (int i = 0; i < drf_read_obj->num_channels; i++) {
-        free(drf_read_obj->channel_names[i]);
-        //printf("freed chan name\n");
         
+        // free top_level_dir strings
+        free(drf_read_obj->channels[i]->top_level_dir_meta->access_mode);
+        free(drf_read_obj->channels[i]->top_level_dir_meta->top_level_dir);
+        free(drf_read_obj->channels[i]->top_level_dir_meta->channel_name);
+        free(drf_read_obj->channels[i]->top_level_dir_meta->min_version);
+        free(drf_read_obj->channels[i]->top_level_dir_meta->max_version);
+
         free(drf_read_obj->channels[i]->top_level_dir_meta->version);
         //printf("freed version\n");
         fflush(stdout);
@@ -602,7 +660,14 @@ docs here, FIX ME
         //printf("freed epoch\n");
         fflush(stdout);
         free(drf_read_obj->channels[i]->top_level_dir_meta->drf_time_desc);
+
+
+
+
         //printf("freed time desc\n");
+        free(drf_read_obj->channel_names[i]);
+
+        free(drf_read_obj->channels[i]->channel_name);
         free(drf_read_obj->channels[i]->top_level_dir_meta);
         //printf("freed top lev prop obj\n");
         free(drf_read_obj->channels[i]);
@@ -702,7 +767,12 @@ path is assumed to be a channel path (absolute)
           // get filenames from this subdir
           if ((strstr(subent->d_name, "rf@") != NULL) && (strstr(subent->d_name, ".h5") != NULL)) {
             // valid filename
-            fnames = realloc(fnames, (1 + numfiles) * sizeof(char*));
+            if (numfiles == 0) {
+              fnames = malloc((1 + numfiles) * sizeof(char*));
+            } else {
+              fnames = realloc(fnames, (1 + numfiles) * sizeof(char*));
+            }
+            
             if (!fnames) {
               fprintf(stderr, "Realloc failure\n");
               exit(-22);
@@ -738,7 +808,8 @@ more docs here
 return a pair of ints
 */
 {
-  unsigned long long bounds[2];
+  //unsigned long long bounds[2];
+  unsigned long long * bounds = NULL;
   unsigned long long s_bound, e_bound;
   unsigned long long tmp_bounds[2];
 
@@ -754,7 +825,8 @@ return a pair of ints
   unsigned long long total_samples;
   int pthidx = 0;
   while (pathlist[pthidx] != NULL) {
-    char * datapath = pathlist[pthidx];
+    char datapath[MED_HDF5_STR];
+    strcpy(datapath, pathlist[pthidx]);
 
     // ignore properties file
     if (strstr(datapath, "drf_properties.h5") != NULL) {
@@ -762,7 +834,6 @@ return a pair of ints
     }
       
     hid_t prop_file, fapl, dset, dshape, space;
-    char attr_name[SMALL_HDF5_STR];
     hsize_t size;
     herr_t status;
     H5O_info_t info;
@@ -789,10 +860,14 @@ return a pair of ints
       exit(-10);
     }
 
-    if (H5Dread(dset, H5T_NATIVE_ULLONG, H5S_ALL, H5S_ALL, H5P_DEFAULT, &tmp_bounds) < 0) {
+    hid_t dsettype;
+    dsettype = H5Dget_type(dset);
+
+    if (H5Dread(dset, dsettype, H5S_ALL, H5S_ALL, H5P_DEFAULT, tmp_bounds) < 0) {
       fprintf(stderr, "Unable to get rf_data_index\n");
       exit(-10);
     }
+
 
     if (firstpath) {
       // set start bound if first path in list
@@ -821,13 +896,15 @@ return a pair of ints
         fprintf(stderr, "Unable to read rf_data shape\n");
         exit(-18);
       }
-
+      H5Sclose(space);
       H5Dclose(dshape);
       pthidx++;
     }
 
+    H5Tclose(dsettype);
     H5Dclose(dset);
     H5Fclose(prop_file);
+    H5Pclose(fapl);
   }
 
   for (int i = 0; i < pthidx; i++) {
@@ -838,8 +915,20 @@ return a pair of ints
   // last_start_sample = tmp_bounds[0]
   // last_index = tmp_bounds[1]
   e_bound = (tmp_bounds[0] + (total_samples - (tmp_bounds[1] + 1)));
+
+  bounds = (unsigned long long *)malloc(2 * sizeof(unsigned long long));
+  if (!bounds) {
+    fprintf(stderr, "Malloc failure\n");
+    exit(-25);
+  }
   bounds[0] = s_bound;
   bounds[1] = e_bound;
+
+  printf("sb is %llu at %p\n", s_bound, &s_bound);
+  printf("eb is %llu at %p\n", e_bound, &e_bound);
+  printf("bounds are %llu and %llu at %p and %p\n", bounds[0], bounds[1], &bounds[0], &bounds[1]);
+  printf("bounds is at %p\n", bounds);
+  fflush(stdout);
   
   return(bounds);
 }

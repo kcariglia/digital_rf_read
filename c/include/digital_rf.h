@@ -165,45 +165,45 @@ typedef struct digital_rf_read_object {
 	
 	
 	// probably dont need *all* of these fields..
-	char *     sub_directory;           /* Present sub-directory in form YYYY-MM-DDTHH:MM:SS - will always end with a "/" */
-	char       basename[SMALL_HDF5_STR];/* Basename of last hdf5 file written to */
+	// char *     sub_directory;           /* Present sub-directory in form YYYY-MM-DDTHH:MM:SS - will always end with a "/" */
+	// char       basename[SMALL_HDF5_STR];/* Basename of last hdf5 file written to */
 	
-	// hdf5 objects
-	hid_t      dataset;         		/* Dataset presently opened            */
-	hid_t      dataspace;       		/* Dataspace used (rf_data)            */
-	hid_t      filespace;       		/* filespace object used               */
-	hid_t      memspace;        		/* memspace object used                */
-	hid_t      hdf5_file;       		/* Hdf5 file presently opened          */
-	hid_t      dataset_prop;    		/* Hdf5 dataset property               */
-	hid_t      index_dataset;   		/* Hdf5 rf_data_index dataset          */
-	hid_t      index_prop;      		/* Hdf5 rf_data_index property         */
-	int        next_index_avail;		/* the next available row in /rf_data_index */
-					/* HDF5 chunk cache size - must be at least file size -- hol up do you actually need this? */
-	uint64_t   global_index;    		/* index into the next sample that could be written (global) */
-	int        present_seq;     		/* The present Hdf5 file sequence. Init value is -1 */
-	uint64_t   dataset_index;   		/* the next available index in open Hdf5 to write to */
-	uint64_t   dataset_avail;   		/* the number of samples in the dataset available for writing to */
-	uint64_t   block_index;     		/* the next available row in the open Hdf5 file/rf_data_index dataset to write to */
+	// // hdf5 objects
+	// hid_t      dataset;         		/* Dataset presently opened            */
+	// hid_t      dataspace;       		/* Dataspace used (rf_data)            */
+	// hid_t      filespace;       		/* filespace object used               */
+	// hid_t      memspace;        		/* memspace object used                */
+	// hid_t      hdf5_file;       		/* Hdf5 file presently opened          */
+	// hid_t      dataset_prop;    		/* Hdf5 dataset property               */
+	// hid_t      index_dataset;   		/* Hdf5 rf_data_index dataset          */
+	// hid_t      index_prop;      		/* Hdf5 rf_data_index property         */
+	// int        next_index_avail;		/* the next available row in /rf_data_index */
+	// 				/* HDF5 chunk cache size - must be at least file size -- hol up do you actually need this? */
+	// uint64_t   global_index;    		/* index into the next sample that could be written (global) */
+	// int        present_seq;     		/* The present Hdf5 file sequence. Init value is -1 */
+	// uint64_t   dataset_index;   		/* the next available index in open Hdf5 to write to */
+	// uint64_t   dataset_avail;   		/* the number of samples in the dataset available for writing to */
+	// uint64_t   block_index;     		/* the next available row in the open Hdf5 file/rf_data_index dataset to write to */
 
-	// actual data
-	int        is_complex;              /* 1 if complex (IQ) data, 0 if single valued */
-	int        rank;            		/* 2 if complex (IQ) data or num_subchannels > 1, 1 otherwise */
-	uint64_t   subdir_cadence_secs;		/* Number of seconds of data found in one subdir. */
-	uint64_t   file_cadence_millisecs; 	/* number of milliseconds of data per file. Rule:  subdir_cadence_secs*1000 % file_cadence_millisecs == 0 */
-	uint64_t   global_start_sample;     /* time of first sample in number of samples since UT midnight 1970-01-01 */
-	uint64_t   max_chunk_size;          /* smallest possible value for maximum number of samples in a file = floor((file_cadence_millisecs/1000)*sample_rate) */
-	int        is_continuous;           /* 1 if continuous data being written, 0 if there might be gaps */
-	int        needs_chunking;  		/* 1 if /rf_data needs chunking (either not is_continuous or compression or checksums used) */
-	hsize_t    chunk_size;      		/* With Digital RF 2.0 hard coded to CHUNK_SIZE_RF_DATA */
-	hid_t      dtype_id;        		/* individual field data type as defined by hdf5.h */
-	hid_t      complex_dtype_id;        /* complex compound data type if is_complex, with fields r and i */
+	// // actual data
+	// int        is_complex;              /* 1 if complex (IQ) data, 0 if single valued */
+	// int        rank;            		/* 2 if complex (IQ) data or num_subchannels > 1, 1 otherwise */
+	// uint64_t   subdir_cadence_secs;		/* Number of seconds of data found in one subdir. */
+	// uint64_t   file_cadence_millisecs; 	/* number of milliseconds of data per file. Rule:  subdir_cadence_secs*1000 % file_cadence_millisecs == 0 */
+	// uint64_t   global_start_sample;     /* time of first sample in number of samples since UT midnight 1970-01-01 */
+	// uint64_t   max_chunk_size;          /* smallest possible value for maximum number of samples in a file = floor((file_cadence_millisecs/1000)*sample_rate) */
+	// int        is_continuous;           /* 1 if continuous data being written, 0 if there might be gaps */
+	// int        needs_chunking;  		/* 1 if /rf_data needs chunking (either not is_continuous or compression or checksums used) */
+	// hsize_t    chunk_size;      		/* With Digital RF 2.0 hard coded to CHUNK_SIZE_RF_DATA */
+	// hid_t      dtype_id;        		/* individual field data type as defined by hdf5.h */
+	// hid_t      complex_dtype_id;        /* complex compound data type if is_complex, with fields r and i */
 
-	// probably metadata
-	char *     uuid_str;        		/* UUID in str form */
-	int        marching_dots;           /* non-zero if marching dots desired when writing, 0 if not */
-	uint64_t   init_utc_timestamp;      /* unix time when channel init called - stored as attribute in each file */
-	uint64_t   last_utc_timestamp;      /* unix time when last write called - supports digital_rf_get_last_write_time method */
-	int        has_failure;				/* bool flag to detect a io error has occured, disallows all following writes */
+	// // probably metadata
+	// char *     uuid_str;        		/* UUID in str form */
+	// int        marching_dots;           /* non-zero if marching dots desired when writing, 0 if not */
+	// uint64_t   init_utc_timestamp;      /* unix time when channel init called - stored as attribute in each file */
+	// uint64_t   last_utc_timestamp;      /* unix time when last write called - supports digital_rf_get_last_write_time method */
+	// int        has_failure;				/* bool flag to detect a io error has occured, disallows all following writes */
 
 
 } Digital_rf_read_object;

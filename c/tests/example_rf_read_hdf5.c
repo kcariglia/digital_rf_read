@@ -38,7 +38,7 @@ int main(int argc, char* argv[])
         printf("epoch: %s\n", read_obj->channels[i]->top_level_dir_meta->epoch);
     }
     fflush(stdout);
-    static unsigned long long * bounds1;
+    unsigned long long * bounds1;
     bounds1 = get_bounds(read_obj, "junk0");
     printf("got bounds: %llu  %llu\n", bounds1[0], bounds1[1]);
     fflush(stdout);
@@ -49,9 +49,9 @@ int main(int argc, char* argv[])
     s1 = bounds1[1];
     printf("(main)s0: %llu  s1: %llu\n", s0, s1);
     printf("got bounds (again): %llu  %llu\n", bounds1[0], bounds1[1]);
-    cont_data_arr1 = get_continuous_blocks(read_obj, s0, s1, read_obj->channel_names[0]);
+    //cont_data_arr1 = get_continuous_blocks(read_obj, s0, s1, read_obj->channel_names[0]);
     fflush(stdout);
-    //free(bounds1);
+    free(bounds1);
     digital_rf_close_read_hdf5(read_obj);
     read_obj = NULL;
 
@@ -75,14 +75,14 @@ int main(int argc, char* argv[])
         printf("sample rate: %Lf\n", read_obj->channels[i]->top_level_dir_meta->sample_rate);
     }
 
-    static unsigned long long * bounds2;
+    unsigned long long * bounds2;
     bounds2 = get_bounds(read_obj, "da");
     printf("got bounds: %ld  %ld\n", bounds2[0], bounds2[1]);
 
     long long ** cont_data_arr2 = NULL;
-    cont_data_arr2 = get_continuous_blocks(read_obj, bounds2[0], bounds2[1], read_obj->channel_names[0]);
+    //cont_data_arr2 = get_continuous_blocks(read_obj, bounds2[0], bounds2[1], read_obj->channel_names[0]);
 
-    //free(bounds2);
+    free(bounds2);
     digital_rf_close_read_hdf5(read_obj);
     read_obj = NULL;
 
@@ -107,14 +107,14 @@ int main(int argc, char* argv[])
         printf("sample rate: %Lf\n", read_obj->channels[i]->top_level_dir_meta->sample_rate);
     }
 
-    static unsigned long long * bounds3;
+    unsigned long long * bounds3;
     bounds3 = get_bounds(read_obj, "adc");
     printf("got bounds: %ld  %ld\n", bounds3[0], bounds3[1]);
 
     long long ** cont_data_arr3 = NULL;
-    cont_data_arr3 = get_continuous_blocks(read_obj, bounds3[0], bounds3[1], read_obj->channel_names[0]);
+    //cont_data_arr3 = get_continuous_blocks(read_obj, bounds3[0], bounds3[1], read_obj->channel_names[0]);
 
-    //free(bounds3);
+    free(bounds3);
     digital_rf_close_read_hdf5(read_obj);
     read_obj = NULL;
 
