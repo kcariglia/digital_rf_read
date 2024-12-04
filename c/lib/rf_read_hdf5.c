@@ -22,9 +22,6 @@ dont forget to remove:
     all printf debug statements
     all fflush(stdout)
 
-dont forget to free rpath, dirlist, overall read obj, etc
-
-what to do about multiple calls to python functions?
 */
 
 #ifdef _WIN32
@@ -525,7 +522,7 @@ need to account for channels AND SUBCHANNELS!!!!!
             exit(-5);
           }
         }
-        channel = _get_channel_properties(drf_read_obj->top_level_directory, rpath, dirlist[num_channels], drf_read_obj->access_mode, drf_read_obj->rdcc_nbytes);
+        channel = _get_channel_properties(drf_read_obj->top_level_directory, current_dir, dirlist[num_channels], drf_read_obj->access_mode, drf_read_obj->rdcc_nbytes);
         // ^^^ note that rpath is on the stack... could cause issues
         channels[num_channels] = channel;
         
@@ -557,26 +554,26 @@ just init the read object from top level dir
     exit(-1);
   }
 
-  char start_dir[8];
-  memcpy(start_dir, &directory[0], 7);
+  //char start_dir[8];
+  //memcpy(start_dir, &directory[0], 7);
 
   char abspath[MED_HDF5_STR];
   char access_mode[SMALL_HDF5_STR];
 
   // first determine the type of the top level dir
-  if (strstr(start_dir, "file://") != NULL) {
+  if (strstr(directory, "file://") != NULL) {
     strcpy(access_mode, "file");
     strcpy(abspath, directory);
-  } else if (strstr(start_dir, "http://") != NULL) {
+  } else if (strstr(directory, "http://") != NULL) {
     strcpy(access_mode, "http");
     strcpy(abspath, directory);
-  } else if (strstr(start_dir, "ftp://")) {
+  } else if (strstr(directory, "ftp://") != NULL) {
     strcpy(access_mode, "ftp");
     strcpy(abspath, directory);
   } else {
     // local dir
     strcpy(access_mode, "local");
-    strcpy(abspath, realpath(directory, NULL));
+    realpath(directory, abspath);
   }
 
   Digital_rf_read_object * read_obj = NULL;
@@ -768,7 +765,7 @@ path is assumed to be a channel path (absolute)
           if ((strstr(subent->d_name, "rf@") != NULL) && (strstr(subent->d_name, ".h5") != NULL)) {
             // valid filename
             if (numfiles == 0) {
-              fnames = malloc((1 + numfiles) * sizeof(char*));
+              fnames = (char**)malloc((1 + numfiles) * sizeof(char*));
             } else {
               fnames = realloc(fnames, (1 + numfiles) * sizeof(char*));
             }
@@ -830,6 +827,7 @@ return a pair of ints
 
     // ignore properties file
     if (strstr(datapath, "drf_properties.h5") != NULL) {
+      pthidx++;
       continue;
     }
       
@@ -868,7 +866,8 @@ return a pair of ints
       exit(-10);
     }
 
-
+    H5Tclose(dsettype);
+    H5Dclose(dset);
     if (firstpath) {
       // set start bound if first path in list
       s_bound = tmp_bounds[0];
@@ -898,13 +897,13 @@ return a pair of ints
       }
       H5Sclose(space);
       H5Dclose(dshape);
-      pthidx++;
+      
     }
 
-    H5Tclose(dsettype);
-    H5Dclose(dset);
+    
     H5Fclose(prop_file);
     H5Pclose(fapl);
+    pthidx++;
   }
 
   for (int i = 0; i < pthidx; i++) {
@@ -924,10 +923,10 @@ return a pair of ints
   bounds[0] = s_bound;
   bounds[1] = e_bound;
 
-  printf("sb is %llu at %p\n", s_bound, &s_bound);
-  printf("eb is %llu at %p\n", e_bound, &e_bound);
-  printf("bounds are %llu and %llu at %p and %p\n", bounds[0], bounds[1], &bounds[0], &bounds[1]);
-  printf("bounds is at %p\n", bounds);
+  //printf("sb is %llu at %p\n", s_bound, &s_bound);
+  //printf("eb is %llu at %p\n", e_bound, &e_bound);
+  //printf("bounds are %llu and %llu at %p and %p\n", bounds[0], bounds[1], &bounds[0], &bounds[1]);
+  //printf("bounds is at %p\n", bounds);
   fflush(stdout);
   
   return(bounds);
