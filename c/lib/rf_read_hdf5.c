@@ -480,7 +480,7 @@ need to account for channels AND SUBCHANNELS!!!!!
     fflush(stdout);
 
     current_dir[0] = '\0';
-    strcat(current_dir, top_level_dir);
+    strcpy(current_dir, top_level_dir);
     strcat(current_dir, "/");
     strcat(current_dir, ent->d_name);
 
@@ -705,7 +705,7 @@ path is assumed to be a channel path (absolute)
   }
 
   channel_dir[0] = '\0';
-  strcat(channel_dir, drf_read_obj->channels[chan_idx]->top_level_dir_meta->top_level_dir);
+  strcpy(channel_dir, drf_read_obj->channels[chan_idx]->top_level_dir_meta->top_level_dir);
   strcat(channel_dir, "/");
   strcat(channel_dir, chan_name);
 
@@ -747,7 +747,7 @@ path is assumed to be a channel path (absolute)
         // found matching subdir
         //printf("matched dir %s\n", ent->d_name);
         current_dir[0] = '\0';
-        strcat(current_dir, channel_dir);
+        strcpy(current_dir, channel_dir);
         strcat(current_dir, "/");
         strcat(current_dir, ent->d_name);
 
@@ -778,7 +778,7 @@ path is assumed to be a channel path (absolute)
             //printf("found file %s\n", subent->d_name);
 
             current_file[0] = '\0';
-            strcat(current_file, current_dir);
+            strcpy(current_file, current_dir);
             strcat(current_file, "/");
             strcat(current_file, subent->d_name);
 
@@ -794,6 +794,21 @@ path is assumed to be a channel path (absolute)
     regfree(&re_subdir);
     closedir(dir);
   }
+
+  // lets try using a sentinel value
+  fnames = realloc(fnames, (1 + numfiles) * sizeof(char*));
+  if (!fnames) {
+    fprintf(stderr, "Realloc failure\n");
+    exit(-22);
+  }
+
+  char sentinel[] = "sentinel";
+  fnames[numfiles] = malloc((strlen(sentinel) + 1) * sizeof(char));
+  strcpy(fnames[numfiles], sentinel);
+
+
+
+
   //printf("total files found: %d\n", numfiles);
   return(fnames);
 }
@@ -822,6 +837,12 @@ return a pair of ints
   unsigned long long total_samples;
   int pthidx = 0;
   while (pathlist[pthidx] != NULL) {
+
+    if (strstr(pathlist[pthidx], "sentinel") != NULL) {
+      pthidx++;
+      break;
+    }
+
     char datapath[MED_HDF5_STR];
     strcpy(datapath, pathlist[pthidx]);
 
