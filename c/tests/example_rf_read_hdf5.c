@@ -8,11 +8,9 @@ int main(int argc, char* argv[])
     char ** channels2 = NULL;
     int num_channels;
 
-    char * dir1 = "/Users/cariglia/example_digital_rf";
-    char * dir2 = "/Users/cariglia/Desktop/drfexamples/hprec_channels";
-    char * dir3 = "/Users/cariglia/Desktop/drfexamples/hprec_subchannels";
-
-    
+    char dir1[SMALL_HDF5_STR] = "/Users/cariglia/example_digital_rf";
+    char dir2[SMALL_HDF5_STR] = "/Users/cariglia/Desktop/drfexamples/hprec_channels";
+    char dir3[SMALL_HDF5_STR] = "/Users/cariglia/Desktop/drfexamples/hprec_subchannels";
 
     printf("Test 2: real data, no subchannels\n");
     printf("----------------------\n");
@@ -32,10 +30,11 @@ int main(int argc, char* argv[])
         printf("%s\n", channels[i]);
         printf("%s\n", channels2[i]);
         printf("sample rate: %Lf\n", read_obj->channels[i]->top_level_dir_meta->sample_rate);
+        //printf("sample rate again: %Lf\n", read_obj->channels[i]->top_level_dir_meta->sample_rate);
     }
 
     unsigned long long * bounds2;
-    bounds2 = get_bounds(read_obj, "da");
+    bounds2 = get_bounds(read_obj, channels[0]);//"da");
     printf("got bounds: %ld  %ld\n", bounds2[0], bounds2[1]);
 
     unsigned long long s0, s1;
@@ -44,7 +43,7 @@ int main(int argc, char* argv[])
     printf("(main)s0: %llu  s1: %llu\n", s0, s1);
     printf("got bounds (again): %llu  %llu\n", bounds2[0], bounds2[1]);
 
-    long long ** cont_data_arr2 = NULL;
+    //long long ** cont_data_arr2 = NULL;
     //cont_data_arr2 = get_continuous_blocks(read_obj, bounds2[0], bounds2[1], read_obj->channel_names[0]);
 
     free(bounds2);

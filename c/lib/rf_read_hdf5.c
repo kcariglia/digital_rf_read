@@ -10,7 +10,7 @@
  *
   See digital_rf.h for overview of this module.
 
-  Written 9/2024 by K. Cariglia
+  Written 9/2024 by K Cariglia
 
   $Id$
 */
@@ -21,6 +21,8 @@ note 2 self
 dont forget to remove:
     all printf debug statements
     all fflush(stdout)
+
+get it working first, make it pretty and add documentation later!
 
 */
 
@@ -178,7 +180,6 @@ docs here
       fprintf(stderr, "Properties file not found\n");
       exit(-7);
     }
-
 
     // here prop_filename should exist
     hid_t prop_file, fapl, attr_id;
@@ -403,9 +404,7 @@ docs here
   strcpy(dir_props->max_version, DIGITAL_RF_VERSION);
   //dir_props->cachedFile = NULL;
 
-
   _read_properties(dir_props, chan_path);
-
 
   channel_properties * channel = NULL;
   if ((channel = (channel_properties *)malloc(sizeof(channel_properties)))==0)
@@ -423,7 +422,6 @@ docs here
   strcpy(channel->channel_name, chan_name);
   channel->top_level_dir_meta = dir_props;
 
-
   return(channel);
 
 }
@@ -439,7 +437,7 @@ need to account for channels AND SUBCHANNELS!!!!!
   char * top_level_dir = drf_read_obj->top_level_directory;
   // first, make sure there is no prop file in top level dir
   char * prop_match = "drf_properties.h5";
-  // dmd is for metadata only, not sure where to look for this yet
+  // dmd is for metadata only, *probably* not needed
   //char * prop_d_match = "dmd_properties.h5";
   char * old_prop_match = "metadata.h5";
   int prop_exists = check_file_exists(top_level_dir, prop_match);
@@ -494,9 +492,6 @@ need to account for channels AND SUBCHANNELS!!!!!
       old_prop_exists = check_file_exists(current_dir, old_prop_match);
 
       if (prop_exists || old_prop_exists) {
-        // rpath and current dir should be the same, but
-        // just in case, use rpath 
-
         dirlist = realloc(dirlist, (1 + num_channels) * sizeof(char*));  
         if (!dirlist) {
           fprintf(stderr, "Realloc failure\n");
@@ -523,7 +518,6 @@ need to account for channels AND SUBCHANNELS!!!!!
           }
         }
         channel = _get_channel_properties(drf_read_obj->top_level_directory, current_dir, dirlist[num_channels], drf_read_obj->access_mode, drf_read_obj->rdcc_nbytes);
-        // ^^^ note that rpath is on the stack... could cause issues
         channels[num_channels] = channel;
         
         num_channels++;
@@ -548,8 +542,7 @@ just init the read object from top level dir
 */
 {
   // double check that directory is valid
-  // is the string "/" a valid input directory? its local and an abspath..
-  if (strlen(directory) < 1) {
+  if (strlen(directory) <= 1) {
     fprintf(stderr, "Malformed input directory\n");
     exit(-1);
   }
@@ -657,9 +650,6 @@ docs here, FIX ME
         //printf("freed epoch\n");
         fflush(stdout);
         free(drf_read_obj->channels[i]->top_level_dir_meta->drf_time_desc);
-
-
-
 
         //printf("freed time desc\n");
         free(drf_read_obj->channel_names[i]);
@@ -806,9 +796,6 @@ path is assumed to be a channel path (absolute)
   fnames[numfiles] = malloc((strlen(sentinel) + 1) * sizeof(char));
   strcpy(fnames[numfiles], sentinel);
 
-
-
-
   //printf("total files found: %d\n", numfiles);
   return(fnames);
 }
@@ -895,6 +882,7 @@ return a pair of ints
       firstpath = false;
     } else {
       // keep resetting last index until you break out of the while loop
+      // optimize this later
       if ((dshape = H5Dopen2(prop_file, "./rf_data", H5P_DEFAULT)) == H5I_INVALID_HID) {
         fprintf(stderr, "Unable to get rf_data\n");
         exit(-10);
@@ -902,7 +890,6 @@ return a pair of ints
       space = H5Dget_space(dshape);
       int rank = H5Sget_simple_extent_ndims(space);
       if (rank >= 0) {
-        //printf("you are safe to follow the phind example\n");
         hsize_t dims[rank];
         H5Sget_simple_extent_dims(space, dims, NULL);
         total_samples = dims[0];
@@ -920,7 +907,6 @@ return a pair of ints
       H5Dclose(dshape);
       
     }
-
     
     H5Fclose(prop_file);
     H5Pclose(fapl);
@@ -954,119 +940,119 @@ return a pair of ints
 }
 
 
-void _read(top_level_dir_properties * dir_props, long start_sample, long long end_sample, char ** paths,
- long long ** data_dict, bool len_only, int sub_chan_idx)
-/*
-docs here
-*/
-{
-  if (strcmp(dir_props->access_mode, "local") != 0) {
-    fprintf(stderr, "Access mode %s not implemented\n", dir_props->access_mode);
-    exit(-20);
-  }
+// void _read(top_level_dir_properties * dir_props, long start_sample, long long end_sample, char ** paths,
+//  long long ** data_dict, bool len_only, int sub_chan_idx)
+// /*
+// docs here
+// */
+// {
+//   if (strcmp(dir_props->access_mode, "local") != 0) {
+//     fprintf(stderr, "Access mode %s not implemented\n", dir_props->access_mode);
+//     exit(-20);
+//   }
 
-  bool ignore_subchan = (sub_chan_idx > 0) ? true : false;
-
-
+//   bool ignore_subchan = (sub_chan_idx > 0) ? true : false;
 
 
 
 
-}
 
 
-char ** _get_file_list(unsigned long long s0, unsigned long long s1, long double sps, unsigned long long scs, unsigned long long fcm)
-/*
-docs here
-*/
-{
-  printf("s0: %llu  s1: %llu\n", s0, s1);
-  unsigned long long dif = s1 - s0;
-  if (dif > 1e12) {
-    printf("dif is %llu\n", dif);
-    fprintf(stderr, "Requested read size, %llu samples, is very large\n", dif);
-  }
-
-  char ** fileList = NULL;
-
-  unsigned long long start_ts = (s0 / sps);
-  unsigned long long end_ts = (s1 / sps) + 1;
-  unsigned long long start_msts = ((s0 / sps) * 1000);
-  unsigned long long end_msts = ((s1 / sps) * 1000);
-
-  unsigned long long start_sub_ts = (floor(start_ts / scs) * scs);
-  unsigned long long end_sub_ts = (floor(end_ts / scs) * scs);
-
-  printf("start is %llu, end is %llu\n", start_sub_ts, end_sub_ts);
-  /* for (uint64_t sub_ts = start_sub_ts; sub_ts < (end_sub_ts + scs); sub_ts += scs) {
-    struct tm * utc_time;
-    sub_ts = (time_t)sub_ts;
-    time_t sub_time = time(&sub_ts);
-    utc_time = gmtime(&sub_time);
-
-    char subdir_str[SMALL_HDF5_STR];
-    strftime(subdir_str, SMALL_HDF5_STR, "%Y-%m-%dT%H-%M-%S", utc_time);
-    printf("time is &s\n", subdir_str);
-
-  } */
-
-  return(fileList);
-
-}
+// }
 
 
-// no clue what to do for an orderedDict return type
-unsigned long long ** get_continuous_blocks(Digital_rf_read_object * drf_read_obj, unsigned long long start_sample, unsigned long long end_sample, char * channel_name)
-/*
-docs here
-*/
-{
-  int chan_idx = -1;
+// char ** _get_file_list(unsigned long long s0, unsigned long long s1, long double sps, unsigned long long scs, unsigned long long fcm)
+// /*
+// docs here
+// */
+// {
+//   printf("s0: %llu  s1: %llu\n", s0, s1);
+//   unsigned long long dif = s1 - s0;
+//   if (dif > 1e12) {
+//     printf("dif is %llu\n", dif);
+//     fprintf(stderr, "Requested read size, %llu samples, is very large\n", dif);
+//   }
 
-  for (int i = 0; i < drf_read_obj->num_channels; i++) {
-    // this could definitely be optimized but lets get it working first!
-    if (strcmp(drf_read_obj->channel_names[i], channel_name) == 0) {
-      chan_idx = i;
-    }
-  }
+//   char ** fileList = NULL;
 
-  if (chan_idx < 0) {
-    fprintf(stderr, "No channel found named %s\n", channel_name);
-    exit(-16);
-  }
+//   unsigned long long start_ts = (s0 / sps);
+//   unsigned long long end_ts = (s1 / sps) + 1;
+//   unsigned long long start_msts = ((s0 / sps) * 1000);
+//   unsigned long long end_msts = ((s1 / sps) * 1000);
 
-  uint64_t subdir_cadence_secs = drf_read_obj->channels[chan_idx]->top_level_dir_meta->subdir_cadence_secs;
-  uint64_t file_cadence_msecs = drf_read_obj->channels[chan_idx]->top_level_dir_meta->file_cadence_millisecs;
-  long double sample_rate = drf_read_obj->channels[chan_idx]->top_level_dir_meta->sample_rate;
+//   unsigned long long start_sub_ts = (floor(start_ts / scs) * scs);
+//   unsigned long long end_sub_ts = (floor(end_ts / scs) * scs);
 
-  char ** paths = NULL;
-  printf("start sample is %llu, end sample is %llu\n", start_sample, end_sample);
-  paths = _get_file_list(start_sample, end_sample, sample_rate, (unsigned long long)subdir_cadence_secs, (unsigned long long)file_cadence_msecs);
+//   printf("start is %llu, end is %llu\n", start_sub_ts, end_sub_ts);
+//   /* for (uint64_t sub_ts = start_sub_ts; sub_ts < (end_sub_ts + scs); sub_ts += scs) {
+//     struct tm * utc_time;
+//     sub_ts = (time_t)sub_ts;
+//     time_t sub_time = time(&sub_ts);
+//     utc_time = gmtime(&sub_time);
 
-  unsigned long long ** cont_blocks = NULL;
-  _read(drf_read_obj->channels[chan_idx]->top_level_dir_meta, start_sample, end_sample, paths, cont_blocks, false, -1);
+//     char subdir_str[SMALL_HDF5_STR];
+//     strftime(subdir_str, SMALL_HDF5_STR, "%Y-%m-%dT%H-%M-%S", utc_time);
+//     printf("time is &s\n", subdir_str);
+
+//   } */
+
+//   return(fileList);
+
+// }
 
 
-  // still need to combine blocks
-  return(cont_blocks);
-}
+// // orderedDict return type
+// unsigned long long ** get_continuous_blocks(Digital_rf_read_object * drf_read_obj, unsigned long long start_sample, unsigned long long end_sample, char * channel_name)
+// /*
+// docs here
+// */
+// {
+//   int chan_idx = -1;
+
+//   for (int i = 0; i < drf_read_obj->num_channels; i++) {
+//     // this could definitely be optimized but lets get it working first!
+//     if (strcmp(drf_read_obj->channel_names[i], channel_name) == 0) {
+//       chan_idx = i;
+//     }
+//   }
+
+//   if (chan_idx < 0) {
+//     fprintf(stderr, "No channel found named %s\n", channel_name);
+//     exit(-16);
+//   }
+
+//   uint64_t subdir_cadence_secs = drf_read_obj->channels[chan_idx]->top_level_dir_meta->subdir_cadence_secs;
+//   uint64_t file_cadence_msecs = drf_read_obj->channels[chan_idx]->top_level_dir_meta->file_cadence_millisecs;
+//   long double sample_rate = drf_read_obj->channels[chan_idx]->top_level_dir_meta->sample_rate;
+
+//   char ** paths = NULL;
+//   printf("start sample is %llu, end sample is %llu\n", start_sample, end_sample);
+//   paths = _get_file_list(start_sample, end_sample, sample_rate, (unsigned long long)subdir_cadence_secs, (unsigned long long)file_cadence_msecs);
+
+//   unsigned long long ** cont_blocks = NULL;
+//   _read(drf_read_obj->channels[chan_idx]->top_level_dir_meta, start_sample, end_sample, paths, cont_blocks, false, -1);
 
 
-float ** read_vector(Digital_rf_read_object * drf_read_obj, long long start_sample,
- int num_samples, char * channel_name, char * sub_channel)
-/*
-also also docs here
-*/
-{
-  if (num_samples < 1) {
-    fprintf(stderr, "Number of samples requested must be greater than 0, not %d\n", num_samples);
-    exit(-19);
-  }
-  float ** vector = NULL;
-  long long end_sample = start_sample + ((long long)num_samples - 1);
+//   // still need to combine blocks
+//   return(cont_blocks);
+// }
+
+
+// float ** read_vector(Digital_rf_read_object * drf_read_obj, long long start_sample,
+//  int num_samples, char * channel_name, char * sub_channel)
+// /*
+// also also docs here
+// */
+// {
+//   if (num_samples < 1) {
+//     fprintf(stderr, "Number of samples requested must be greater than 0, not %d\n", num_samples);
+//     exit(-19);
+//   }
+//   float ** vector = NULL;
+//   long long end_sample = start_sample + ((long long)num_samples - 1);
 
   
 
-  return(vector);
-}
+//   return(vector);
+// }
 
