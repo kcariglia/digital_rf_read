@@ -209,6 +209,12 @@ typedef struct digital_rf_read_object {
 } Digital_rf_read_object;
 
 
+typedef struct drf_bounds {
+	unsigned long long b1;
+	unsigned long long b2;
+} drf_bounds;
+
+
 
 /* Public method declarations */
 
@@ -259,7 +265,8 @@ EXPORT int digital_rf_write_blocks_hdf5(
 
 	EXPORT Digital_rf_read_object * digital_rf_create_read_hdf5(char * directory, uint64_t rdcc_nbytes);
 	EXPORT char ** get_channels(Digital_rf_read_object * drf_read_obj);
-	EXPORT unsigned long long * get_bounds(Digital_rf_read_object * drf_read_obj, char * channel_name);
+	EXPORT void get_bounds(Digital_rf_read_object * drf_read_obj, char * channel_name,
+		drf_bounds * bounds);
 	EXPORT float ** read_vector(Digital_rf_read_object * drf_read_obj, long long start_sample,
  int num_samples, char * channel_name, char * sub_channel);
 	EXPORT unsigned long long ** get_continuous_blocks(Digital_rf_read_object * drf_read_obj, unsigned long long start_sample, unsigned long long end_sample, char * channel_name);

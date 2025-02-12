@@ -801,14 +801,15 @@ path is assumed to be a channel path (absolute)
 }
 
 
-unsigned long long * get_bounds(Digital_rf_read_object * drf_read_obj, char * channel_name)
+void get_bounds(Digital_rf_read_object * drf_read_obj, char * channel_name,
+  drf_bounds * bounds)
 /*
 more docs here
 return a pair of ints
 */
 {
   //unsigned long long bounds[2];
-  unsigned long long * bounds = NULL;
+  //unsigned long long * bounds = NULL;
   unsigned long long s_bound, e_bound;
   unsigned long long tmp_bounds[2];
 
@@ -922,21 +923,17 @@ return a pair of ints
   // last_index = tmp_bounds[1]
   e_bound = (tmp_bounds[0] + (total_samples - (tmp_bounds[1] + 1)));
 
-  bounds = (unsigned long long *)malloc(2 * sizeof(unsigned long long));
-  if (!bounds) {
-    fprintf(stderr, "Malloc failure\n");
-    exit(-25);
-  }
-  bounds[0] = s_bound;
-  bounds[1] = e_bound;
+  
+  bounds->b1 = s_bound;
+  bounds->b2 = e_bound;
 
   //printf("sb is %llu at %p\n", s_bound, &s_bound);
   //printf("eb is %llu at %p\n", e_bound, &e_bound);
-  //printf("bounds are %llu and %llu at %p and %p\n", bounds[0], bounds[1], &bounds[0], &bounds[1]);
+  printf("bounds are %llu and %llu at %p and %p\n", bounds->b1, bounds->b2, &bounds->b1, &bounds->b2);
   //printf("bounds is at %p\n", bounds);
   fflush(stdout);
   
-  return(bounds);
+  return;
 }
 
 

@@ -33,15 +33,22 @@ int main(int argc, char* argv[])
         //printf("sample rate again: %Lf\n", read_obj->channels[i]->top_level_dir_meta->sample_rate);
     }
 
-    unsigned long long * bounds2;
-    bounds2 = get_bounds(read_obj, channels[0]);//"da");
-    printf("got bounds: %ld  %ld\n", bounds2[0], bounds2[1]);
+    drf_bounds * bounds2;
+
+    bounds2 = (drf_bounds *)malloc(sizeof(drf_bounds));
+    if (!bounds2) {
+        fprintf(stderr, "Malloc failure\n");
+        exit(-25);
+    }
+
+    get_bounds(read_obj, channels[0], bounds2);//"da");
+    printf("got bounds: %ld  %ld\n", bounds2->b1, bounds2->b2);
 
     unsigned long long s0, s1;
-    s0 = bounds2[0];
-    s1 = bounds2[1];
+    s0 = bounds2->b1;
+    s1 = bounds2->b2;
     printf("(main)s0: %llu  s1: %llu\n", s0, s1);
-    printf("got bounds (again): %llu  %llu\n", bounds2[0], bounds2[1]);
+    printf("got bounds (again): %llu  %llu\n", bounds2->b1, bounds2->b2);
 
     //long long ** cont_data_arr2 = NULL;
     //cont_data_arr2 = get_continuous_blocks(read_obj, bounds2[0], bounds2[1], read_obj->channel_names[0]);
@@ -71,9 +78,16 @@ int main(int argc, char* argv[])
         printf("sample rate: %Lf\n", read_obj->channels[i]->top_level_dir_meta->sample_rate);
     }
 
-    unsigned long long * bounds3;
-    bounds3 = get_bounds(read_obj, "adc");
-    printf("got bounds: %ld  %ld\n", bounds3[0], bounds3[1]);
+    drf_bounds * bounds3;
+
+    bounds3 = (drf_bounds *)malloc(sizeof(drf_bounds));
+    if (!bounds3) {
+        fprintf(stderr, "Malloc failure\n");
+        exit(-25);
+    }
+
+    get_bounds(read_obj, "adc", bounds3);
+    printf("got bounds: %ld  %ld\n", bounds3->b1, bounds3->b2);
 
     long long ** cont_data_arr3 = NULL;
     //cont_data_arr3 = get_continuous_blocks(read_obj, bounds3[0], bounds3[1], read_obj->channel_names[0]);
@@ -109,17 +123,24 @@ int main(int argc, char* argv[])
         printf("epoch: %s\n", read_obj->channels[i]->top_level_dir_meta->epoch);
     }
     fflush(stdout);
-    unsigned long long * bounds1;
-    bounds1 = get_bounds(read_obj, channels[0]);//"junk0");
-    printf("got bounds: %llu  %llu\n", bounds1[0], bounds1[1]);
+    drf_bounds * bounds1;
+
+    bounds1 = (drf_bounds *)malloc(sizeof(drf_bounds));
+    if (!bounds1) {
+        fprintf(stderr, "Malloc failure\n");
+        exit(-25);
+    }
+
+    get_bounds(read_obj, channels[0], bounds1);//"junk0");
+    printf("got bounds: %llu  %llu\n", bounds1->b1, bounds1->b2);
     fflush(stdout);
 
     unsigned long ** cont_data_arr1 = NULL;
    // unsigned long long s0, s1;
-    s0 = bounds1[0];
-    s1 = bounds1[1];
+    s0 = bounds1->b1;
+    s1 = bounds1->b2;
     printf("(main)s0: %llu  s1: %llu\n", s0, s1);
-    printf("got bounds (again): %llu  %llu\n", bounds1[0], bounds1[1]);
+    printf("got bounds (again): %llu  %llu\n", bounds1->b1, bounds1->b2);
     //cont_data_arr1 = get_continuous_blocks(read_obj, s0, s1, read_obj->channel_names[0]);
     fflush(stdout);
     free(bounds1);
