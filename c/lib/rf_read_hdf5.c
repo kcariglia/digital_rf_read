@@ -161,12 +161,30 @@ docs here
     char * prop_match = "drf_properties.h5";
     //char * prop_d_match = "dmd_properties.h5"; // when to account for this? not in example
     char * old_prop_match = "metadata.h5";
+    char prop_filename[SMALL_HDF5_STR];
+    int prop_exists, old_prop_exists;
+    long double sample_rate;
+    hid_t prop_file, fapl, attr_id;
+    char attr_name[SMALL_HDF5_STR];
+    hsize_t size;
+    herr_t status;
+    H5O_info_t info;
+    unsigned mode;
+    hsize_t n;
+    H5O_info_t ainfo;
+    hid_t lapl_id;
+    hid_t attr_dtype;
+    uint64_t num, den, sps;
+    int old = 0;
+    char time_desc[BIG_HDF5_STR];
+    char version[SMALL_HDF5_STR];
+    char epoch[SMALL_HDF5_STR];
+
     // is there a better way to get the regex patterns from list_drf?
     // yes-- but not necessary for this particular use case
-    int prop_exists = check_file_exists(chan_path, prop_match);
-    int old_prop_exists = check_file_exists(chan_path, old_prop_match);
+    prop_exists = check_file_exists(chan_path, prop_match);
+    old_prop_exists = check_file_exists(chan_path, old_prop_match);
 
-    char prop_filename[SMALL_HDF5_STR];
     strcpy(prop_filename, chan_path);
     strcat(prop_filename, "/");
 
@@ -181,19 +199,12 @@ docs here
       exit(-7);
     }
 
-    // here prop_filename should exist
-    hid_t prop_file, fapl, attr_id;
-    char attr_name[SMALL_HDF5_STR];
-    hsize_t size;
-    herr_t status;
-    H5O_info_t info;
-
     if ((fapl = H5Pcreate(H5P_FILE_ACCESS)) == H5I_INVALID_HID) {
       fprintf(stderr, "Problem opening file %s\n", prop_filename);
       exit(-8);
     }
 
-    unsigned mode = H5F_ACC_RDONLY;
+    mode = H5F_ACC_RDONLY;
     if ((prop_file = H5Fopen(prop_filename, mode, fapl)) == H5I_INVALID_HID) {
       fprintf(stderr, "Problem opening file %s\n", prop_filename);
       exit(-9);
@@ -211,12 +222,7 @@ docs here
       exit(-11);
     }
 
-    hsize_t n = (hsize_t)info.num_attrs;
-    H5O_info_t ainfo;
-    hid_t lapl_id;
-    hid_t attr_dtype;
-    uint64_t num, den, sps;
-    int old = 0;
+    n = (hsize_t)info.num_attrs;
 
     // iterate through all attributes in root group
     for (hsize_t i = 0; i < n; i++) {
@@ -234,7 +240,6 @@ docs here
       // i wish switch blocks worked with strings
       // the following is in lieu of that
       if (strcmp(attr_name, "digital_rf_time_description") == 0) {
-        char time_desc[BIG_HDF5_STR];
         if ((status = H5Aread(attr_id, attr_dtype, &time_desc)) < 0) {
           fprintf(stderr, "Problem reading attribute %s\n", attr_name);
           exit(-13);
@@ -244,7 +249,6 @@ docs here
         dir_props->drf_time_desc = malloc((strlen(time_desc) + 1) * sizeof(char));
         strcpy(dir_props->drf_time_desc, time_desc);
       } else if (strcmp(attr_name, "digital_rf_version") == 0) {
-        char version[SMALL_HDF5_STR];
         if ((status = H5Aread(attr_id, attr_dtype, &version)) < 0) {
           fprintf(stderr, "Problem reading attribute %s\n", attr_name);
           exit(-13);
@@ -264,7 +268,6 @@ docs here
         dir_props->version = malloc((strlen(version) + 1) * sizeof(char));
         strcpy(dir_props->version, version);
       } else if (strcmp(attr_name, "epoch") == 0) {
-        char epoch[SMALL_HDF5_STR];
         if ((status = H5Aread(attr_id, attr_dtype, &epoch)) < 0) {
           fprintf(stderr, "Problem reading attribute %s\n", attr_name);
           exit(-13);
@@ -334,7 +337,6 @@ docs here
       // new version of properties file
         dir_props->sample_rate_numerator = num;
         dir_props->sample_rate_denominator = den;
-        long double sample_rate;
         sample_rate = (long double)num / (long double)den;
         dir_props->sample_rate = sample_rate;
     }
@@ -357,6 +359,7 @@ docs here
 */
 {
   top_level_dir_properties * dir_props = NULL;
+  channel_properties * channel = NULL;
 
   /* allocate overall object */
   if ((dir_props = (top_level_dir_properties *)malloc(sizeof(top_level_dir_properties)))==0)
@@ -406,7 +409,6 @@ docs here
 
   _read_properties(dir_props, chan_path);
 
-  channel_properties * channel = NULL;
   if ((channel = (channel_properties *)malloc(sizeof(channel_properties)))==0)
     {
       fprintf(stderr, "malloc failure - unrecoverable\n");
@@ -440,15 +442,28 @@ need to account for channels AND SUBCHANNELS!!!!!
   // dmd is for metadata only, *probably* not needed
   //char * prop_d_match = "dmd_properties.h5";
   char * old_prop_match = "metadata.h5";
-  int prop_exists = check_file_exists(top_level_dir, prop_match);
-  int old_prop_exists = check_file_exists(top_level_dir, old_prop_match);
+  bool prop_exists, old_prop_exists;
+  DIR * dir;
+  struct dirent * ent;
+  // dirlist should be the final string array of all 
+  // channel dirs and subdirs
+  char ** dirlist = NULL;
+  int num_channels = 0;
+  int capacity = SMALL_HDF5_STR;
+  channel_properties ** channels = NULL;
+  channel_properties * channel = NULL;
+  char* res;
+  char rpath[MED_HDF5_STR];
+  char current_dir[SMALL_HDF5_STR];
+
+  prop_exists = check_file_exists(top_level_dir, prop_match);
+  old_prop_exists = check_file_exists(top_level_dir, old_prop_match);
+
   if (prop_exists || old_prop_exists) {
     fprintf(stderr, "%s is a channel directory, but a top-level directory containing channel directories is required.\n", top_level_dir);
     exit(-3);
   }
 
-  DIR * dir;
-  struct dirent * ent;
   fflush(stdout);
 
   dir = opendir(top_level_dir);
@@ -457,19 +472,7 @@ need to account for channels AND SUBCHANNELS!!!!!
     exit(-4);
   }
 
-  // dirlist should be the final string array of all 
-  // channel dirs and subdirs
-  char ** dirlist = NULL;
-  int num_channels = 0;
-  int capacity = SMALL_HDF5_STR;
-  channel_properties ** channels = NULL;
-  channel_properties * channel = NULL;
-
   // loop through dirs
-  char rpath[MED_HDF5_STR];
-
-  char current_dir[SMALL_HDF5_STR];
-
   while ((ent = readdir(dir)) != NULL) {
     if ((strcmp(ent->d_name, ".") == 0) || (strcmp(ent->d_name, "..") == 0)) {
       continue;
@@ -482,7 +485,7 @@ need to account for channels AND SUBCHANNELS!!!!!
     strcat(current_dir, "/");
     strcat(current_dir, ent->d_name);
 
-    char* res = realpath(current_dir, rpath);
+    res = realpath(current_dir, rpath);
 
     if (res) {
       //printf("real path is %s\n", rpath);
@@ -552,6 +555,7 @@ just init the read object from top level dir
 
   char abspath[MED_HDF5_STR];
   char access_mode[SMALL_HDF5_STR];
+  Digital_rf_read_object * read_obj = NULL;
 
   // first determine the type of the top level dir
   if (strstr(directory, "file://") != NULL) {
@@ -568,8 +572,6 @@ just init the read object from top level dir
     strcpy(access_mode, "local");
     realpath(directory, abspath);
   }
-
-  Digital_rf_read_object * read_obj = NULL;
 
   /* allocate overall object */
 	if ((read_obj = (Digital_rf_read_object *)malloc(sizeof(Digital_rf_read_object)))==0)
@@ -681,6 +683,18 @@ path is assumed to be a channel path (absolute)
   char ** fnames = NULL;
   int chan_idx = -1;
   char channel_dir[MED_HDF5_STR];
+  bool drf, dmd;
+  regex_t re_subdir;
+  DIR * dir;
+  DIR * subdir;
+  struct dirent * ent;
+  struct dirent * subent;
+  char current_dir[MED_HDF5_STR];
+  char current_file[MED_HDF5_STR]; // using med str because this is supposed to contain abspath
+  char sentinel[SMALL_HDF5_STR];
+  //char ** dirnames;
+  //int numdirs = 0;
+  int numfiles = 0;
 
   for (int i = 0; i < drf_read_obj->num_channels; i++) {
     // this could definitely be optimized but lets get it working first!
@@ -699,24 +713,13 @@ path is assumed to be a channel path (absolute)
   strcat(channel_dir, "/");
   strcat(channel_dir, chan_name);
 
-  bool drf = (check_file_exists(channel_dir, "drf_properties.h5") || check_file_exists(channel_dir, "drf_metadata.h5"));
-  bool dmd = (check_file_exists(channel_dir, "dmd_properties.h5") || check_file_exists(channel_dir, "dmd_metadata.h5"));
+  drf = (check_file_exists(channel_dir, "drf_properties.h5") || check_file_exists(channel_dir, "drf_metadata.h5"));
+  dmd = (check_file_exists(channel_dir, "dmd_properties.h5") || check_file_exists(channel_dir, "dmd_metadata.h5"));
   
-  regex_t re_subdir;
   if (regcomp(&re_subdir, "[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]-[0-9][0-9]-[0-9][0-9]", 0) != 0) {
     fprintf(stderr, "Problem compiling regex\n");
     exit(-20);
   }
-
-  DIR * dir;
-  DIR * subdir;
-  struct dirent * ent;
-  struct dirent * subent;
-  char current_dir[MED_HDF5_STR];
-  char current_file[MED_HDF5_STR]; // using med str because this is supposed to contain abspath
-  //char ** dirnames;
-  //int numdirs = 0;
-  int numfiles = 0;
 
   if (drf || dmd) {
     // there must exist some property file for this 
@@ -740,7 +743,6 @@ path is assumed to be a channel path (absolute)
         strcpy(current_dir, channel_dir);
         strcat(current_dir, "/");
         strcat(current_dir, ent->d_name);
-
 
         // now we have to find the filenames IN ORDER
         // well,,, first just get fnames, THEN sort
@@ -792,7 +794,7 @@ path is assumed to be a channel path (absolute)
     exit(-22);
   }
 
-  char sentinel[] = "sentinel";
+  strcpy(sentinel, "sentinel");
   fnames[numfiles] = malloc((strlen(sentinel) + 1) * sizeof(char));
   strcpy(fnames[numfiles], sentinel);
 
@@ -812,18 +814,26 @@ return a pair of ints
   //unsigned long long * bounds = NULL;
   unsigned long long s_bound, e_bound;
   unsigned long long tmp_bounds[2];
+  char ** pathlist = NULL;
+  bool firstpath = true;
+  unsigned long long total_samples;
+  int pthidx = 0;
+  hid_t prop_file, fapl, dset, dshape, space;
+  hsize_t size;
+  herr_t status;
+  H5O_info_t info;
+  hid_t dsettype;
+  int rank;
+  char datapath[MED_HDF5_STR];
+  unsigned mode;
 
   if (strcmp(drf_read_obj->access_mode, "local") != 0) {
     fprintf(stderr, "Access mode %s not implemented\n", drf_read_obj->access_mode);
     exit(-15);
   }
 
-  char ** pathlist = NULL;
   pathlist = _ilsdrf(drf_read_obj, channel_name);
 
-  bool firstpath = true;
-  unsigned long long total_samples;
-  int pthidx = 0;
   while (pathlist[pthidx] != NULL) {
 
     if (strstr(pathlist[pthidx], "sentinel") != NULL) {
@@ -831,7 +841,6 @@ return a pair of ints
       break;
     }
 
-    char datapath[MED_HDF5_STR];
     strcpy(datapath, pathlist[pthidx]);
 
     // ignore properties file
@@ -839,18 +848,13 @@ return a pair of ints
       pthidx++;
       continue;
     }
-      
-    hid_t prop_file, fapl, dset, dshape, space;
-    hsize_t size;
-    herr_t status;
-    H5O_info_t info;
 
     if ((fapl = H5Pcreate(H5P_FILE_ACCESS)) == H5I_INVALID_HID) {
       fprintf(stderr, "Problem opening file %s\n", datapath);
       exit(-8);
     }
 
-    unsigned mode = H5F_ACC_RDONLY;
+    mode = H5F_ACC_RDONLY;
     if ((prop_file = H5Fopen(datapath, mode, fapl)) == H5I_INVALID_HID) {
       fprintf(stderr, "Problem opening file %s\n", datapath);
       exit(-9);
@@ -867,7 +871,6 @@ return a pair of ints
       exit(-10);
     }
 
-    hid_t dsettype;
     dsettype = H5Dget_type(dset);
 
     if (H5Dread(dset, dsettype, H5S_ALL, H5S_ALL, H5P_DEFAULT, tmp_bounds) < 0) {
@@ -889,7 +892,7 @@ return a pair of ints
         exit(-10);
       }
       space = H5Dget_space(dshape);
-      int rank = H5Sget_simple_extent_ndims(space);
+      rank = H5Sget_simple_extent_ndims(space);
       if (rank >= 0) {
         hsize_t dims[rank];
         H5Sget_simple_extent_dims(space, dims, NULL);
